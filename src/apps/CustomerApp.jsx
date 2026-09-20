@@ -75,6 +75,20 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
   };
 
   useEffect(() => {
+    const content = document.querySelector(".app .content");
+    if (!content) return;
+
+    const resetScroll = () => {
+      content.scrollTop = 0;
+      content.scrollLeft = 0;
+    };
+
+    resetScroll();
+    const frame = window.requestAnimationFrame(resetScroll);
+    return () => window.cancelAnimationFrame(frame);
+  }, [screen]);
+
+  useEffect(() => {
     if (screen !== "arriving") return;
     setEta(selected.eta);
     const id = setInterval(() => setEta(v => Math.max(0, v - 1)), 1800);
