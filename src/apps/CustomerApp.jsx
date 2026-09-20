@@ -44,7 +44,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
   const [payment, setPayment] = useState("cash");
   const [cancelOpen, setCancelOpen] = useState(false);
   const [tripId] = useState("#RIVO-1048");
-  const [tripDate] = useState("20 септември 2026 · 18:42");
+  const [tripDate, setTripDate] = useState("");
   const historySeed = [
     { route: "Перник → София", service: `${vehicles.premium.label} · ${vehicles.premium.model}`, price: 34, date: "Днес, 09:40" },
     { route: "Перник · Център", service: `${vehicles.city.label} · ${vehicles.city.model}`, price: 8, date: "Вчера, 18:20" }
@@ -75,6 +75,11 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
     setHistory([]);
     setScreen("home");
     setTip(0);
+  };
+
+  const completeTrip = () => {
+    setTripDate(new Intl.DateTimeFormat("bg-BG", { dateStyle: "medium", timeStyle: "short" }).format(new Date()));
+    setScreen("complete");
   };
 
   useEffect(() => {
@@ -121,6 +126,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
           <span className="destinationIcon"><Navigation2 size={18} strokeWidth={1.8} aria-hidden="true"/></span><span><small>Къде отиваш?</small><b>{destination}</b><small>Натисни, за да промениш маршрута</small></span><ChevronRight className="cardChevron" size={20} strokeWidth={1.8}/>
         </button>
         <div className="savedPlaces">{savedPlaces.map(({ name, address, icon }) => <button key={name} onClick={() => choosePlace(address)}><span><PlaceIcon icon={icon}/></span><b>{name}</b></button>)}</div>
+        <div className="recentHome"><div className="eyebrow">ПОСЛЕДНИ</div>{recentPlaces.slice(0, 2).map(([name, detail]) => <button key={name} onClick={() => { setDestination(name); go("destination"); }}><History size={16} strokeWidth={1.8}/><span><b>{name}</b><small>{detail}</small></span><ChevronRight className="cardChevron" size={18} strokeWidth={1.8}/></button>)}</div>
       </main>
     </>
   );
@@ -130,7 +136,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
       <Header title="Маршрут" onBack={back}/>
         <main className="content customerContent">
         <div><span className="eyebrow">СТЪПКА 1 ОТ 3</span><h1>Къде отиваме?</h1><p className="muted">Избери точна дестинация за по-добра цена.</p></div>
-        <Card className="routeEditor"><div className="summaryLine"><LocateFixed className="routeIcon" size={17} strokeWidth={1.8}/><span><small>ВЗИМАНЕ</small><b>Текущо местоположение</b></span><LocateFixed className="locationMark" size={18} strokeWidth={1.8}/></div><div className="summaryLine destinationInput"><MapPin className="routeIcon mutedIcon" size={17} strokeWidth={1.8}/><span className="grow"><small>ДЕСТИНАЦИЯ</small><input value={destination} onChange={e => setDestination(e.target.value)} /></span></div></Card>
+        <Card className="routeEditor"><div className="summaryLine"><LocateFixed className="routeIcon" size={17} strokeWidth={1.8}/><span><small>ВЗИМАНЕ</small><b>Текущо местоположение</b></span></div><div className="summaryLine destinationInput"><MapPin className="routeIcon mutedIcon" size={17} strokeWidth={1.8}/><span className="grow"><small>ДЕСТИНАЦИЯ</small><input value={destination} onChange={e => setDestination(e.target.value)} /></span></div></Card>
         <div className="eyebrow">ЗАПАЗЕНИ МЕСТА</div>
         <div className="savedPlaceList">{savedPlaces.map(({ name, address, icon }) => <button key={name} className="place" onClick={() => setDestination(address)}><span className="placeIcon"><PlaceIcon icon={icon}/></span><span><b>{name}</b><small>{address}</small></span><ChevronRight className="cardChevron" size={19} strokeWidth={1.8}/></button>)}</div>
         <div className="eyebrow">ПОСЛЕДНИ</div>
@@ -196,7 +202,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
         <Card className="driverProfile"><div className="driverAvatar">И</div><div className="grow"><b>Иван Петров</b><small>★ 4.9 · 248 курса</small><small>{selected.model} · CB 5237 MK</small></div><div className="actions"><button aria-label="Обади се на Иван" onClick={() => toast("Обаждане към Иван…")}><Phone size={17} strokeWidth={1.8}/></button><button aria-label="Отвори чат" onClick={() => toast("Отваряме чат…")}><MessageCircle size={17} strokeWidth={1.8}/></button></div></Card>
         <Card className="pickupSummary"><span><small>ВЗИМАНЕ</small><b>Текущо местоположение</b></span><Pill live>{eta ? "НА ПЪТ" : "ПРИСТИГНА"}</Pill></Card>
         <div className="twoCols"><Button secondary onClick={() => toast("Курсът е споделен")}><Share2 size={15} strokeWidth={1.8}/> Сподели</Button><Button secondary onClick={() => toast("RIVO Safety е активен")}><ShieldCheck size={15} strokeWidth={1.8}/> Safety</Button></div>
-        {cancelOpen && <div className="cancelPanel" role="dialog" aria-modal="true" aria-labelledby="cancelTitle"><div className="cancelIcon"><AlertCircle size={20} strokeWidth={1.8}/></div><div><h2 id="cancelTitle">Отказваш курса?</h2><p className="muted">Шофьорът вече е на път към теб.</p></div><div className="cancelActions"><Button secondary onClick={() => setCancelOpen(false)}>Продължи курса</Button><button className="cancelConfirm" onClick={() => { setCancelOpen(false); setHistory([]); setScreen("home"); }}>Откажи курса</button></div></div>}
+        {cancelOpen && <div className="cancelOverlay" role="dialog" aria-modal="true" aria-labelledby="cancelTitle"><div className="cancelPanel"><div className="cancelIcon"><AlertCircle size={20} strokeWidth={1.8}/></div><div><h2 id="cancelTitle">Отказваш курса?</h2><p className="muted">Шофьорът вече е на път към теб.</p></div><div className="cancelActions"><Button secondary onClick={() => setCancelOpen(false)}>Продължи курса</Button><button className="cancelConfirm" onClick={() => { setCancelOpen(false); setHistory([]); setScreen("home"); }}>Откажи курса</button></div></div></div>}
         <div className="spacer"/><Button onClick={() => setScreen("trip")}>ДЕМО: ШОФЬОРЪТ ПРИСТИГНА</Button><button className="quietAction" onClick={() => setCancelOpen(true)}>Откажи курса</button>
       </main>
     </>
@@ -210,7 +216,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
         <MapMock mode="driver" progress={tripProgress}/><div className="progress"><i style={{width:`${tripProgress}%`}}/></div>
         <Card className="activeTripCard"><div className="driverAvatar">И</div><span className="grow"><b>Иван Петров</b><small>{selected.model} · CB 5237 MK</small></span><strong className="price">{price} €</strong></Card>
         <Card className="routeSummary compactSummary"><div className="summaryLine"><span className="dot"/><span><small>ПРИСТИГАНЕ</small><b>{destination}</b></span></div><div className="summaryMeta"><span>{passengers} {passengers === 1 ? "пътник" : "пътници"}</span><span>{luggage ? "С багаж" : "Без багаж"}</span><span>{payment === "cash" ? "Кеш" : "Visa"}</span></div></Card>
-        <div className="spacer"/><Button onClick={() => setScreen("complete")}>ДЕМО: ЗАВЪРШИ ПЪТУВАНЕТО</Button>
+        <div className="spacer"/><Button onClick={completeTrip}>ДЕМО: ЗАВЪРШИ ПЪТУВАНЕТО</Button>
       </main>
     </>
   );
@@ -220,7 +226,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
       <Header logo/>
         <main className="content customerContent centered">
         <div className="check">✓</div><div><span className="eyebrow">КУРСЪТ Е ЗАВЪРШЕН</span><h1>Пристигнахте</h1><p className="muted">Благодарим, че пътувахте с RIVO.</p></div>
-        <Card className="receipt"><RideClassBadge vehicle={selected}/><div className="receiptTop"><span><b>Завършен курс</b><small>{selected.label}</small></span><strong>{price + tip} €</strong></div><div className="receiptMeta"><span><small>TRIP ID</small><b>{tripId}</b></span><span><small>ДАТА И ЧАС</small><b>{tripDate}</b></span></div><div className="receiptRow"><span>Маршрут</span><b>Перник → {destination.split(",")[0]}</b></div><div className="receiptRow"><span>Време</span><b>38 мин · 31 км</b></div><div className="receiptRow"><span>Плащане</span><b>{payment === "cash" ? "Кеш" : "Visa •••• 4242"}</b></div><div className="receiptRow total"><span>Общо</span><strong>{price + tip} €</strong></div></Card>
+        <Card className="receipt"><RideClassBadge vehicle={selected}/><div className="receiptTop"><span><b>Завършен курс</b></span><strong>{price + tip} €</strong></div><div className="receiptMeta"><span><small>TRIP ID</small><b>{tripId}</b></span><span><small>ДАТА И ЧАС</small><b>{tripDate}</b></span></div><div className="receiptRow"><span>Маршрут</span><b>Перник → {destination.split(",")[0]}</b></div><div className="receiptRow"><span>Време</span><b>38 мин · 31 км</b></div><div className="receiptRow"><span>Плащане</span><b>{payment === "cash" ? "Кеш" : "Visa •••• 4242"}</b></div><div className="receiptRow total"><span>Общо</span><strong>{price + tip} €</strong></div></Card>
         <div className="ratingBlock"><b>Как беше пътуването?</b><div className="stars">{[1,2,3,4,5].map(n => <button key={n} className={n <= rating ? "" : "off"} onClick={() => setRating(n)}>★</button>)}</div></div>
         <div className="tipBlock"><span className="eyebrow">БЛАГОДАРИ НА ИВАН</span><div className="tipGrid">{[0,2,5,10].map(n => <button key={n} className={tip === n ? "selected" : ""} onClick={() => setTip(n)}>{n === 0 ? "Без бакшиш" : `+${n} €`}</button>)}</div></div>
         <div className="spacer"/><Button onClick={finishRide}>ГОТОВО</Button>
