@@ -239,7 +239,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
         <main className="content customerContent centered matchingContent">
         <div className="matchingVisual"><LoaderCircle size={30} strokeWidth={1.7}/></div>
         <div><span className="eyebrow">КУРСЪТ Е ПОТВЪРДЕН</span><h1>Търсим най-близкия RIVO…</h1><p className="muted">Свързваме те с подходящия автомобил.</p></div>
-        <RivoMap pickup={pickup} destination={destination} route={route} driverProgress={arrivingDriverProgress}/>
+        <RivoMap pickup={pickup} destination={destination} route={route}/>
         <div className="spacer"/>
       </main>
     </>
@@ -250,7 +250,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
       <Header logo right={<Pill live>ШОФЬОРЪТ ИДВА</Pill>}/>
         <main className="content customerContent">
         <div className="statusHeader"><div><span className="eyebrow">КУРСЪТ Е ПОТВЪРДЕН</span><h1>{eta ? `Идва след ${eta} мин` : "Шофьорът пристигна"}</h1><p className="muted">{selected.model} · {selected.label}</p></div><span className="liveDot"/></div>
-        <RivoMap pickup={pickup} destination={destination} route={route}/>
+        <RivoMap pickup={pickup} destination={destination} route={route} driverProgress={arrivingDriverProgress}/>
         <Card className="driverProfile"><div className="driverAvatar">И</div><div className="grow"><b>Иван Петров</b><small>★ 4.9 · 248 курса</small><small>{selected.model} · CB 5237 MK</small></div><div className="actions"><button aria-label="Обади се на Иван" onClick={() => toast("Обаждане към Иван…")}><Phone size={17} strokeWidth={1.8}/></button><button aria-label="Отвори чат" onClick={() => toast("Отваряме чат…")}><MessageCircle size={17} strokeWidth={1.8}/></button></div></Card>
         <Card className="pickupSummary"><span><small>ВЗИМАНЕ</small><b>Текущо местоположение</b></span><Pill live>{eta ? "НА ПЪТ" : "ПРИСТИГНА"}</Pill></Card>
         <div className="twoCols"><Button secondary onClick={() => toast("Курсът е споделен")}><Share2 size={15} strokeWidth={1.8}/> Сподели</Button><Button secondary onClick={() => toast("RIVO Safety е активен")}><ShieldCheck size={15} strokeWidth={1.8}/> Safety</Button></div>
