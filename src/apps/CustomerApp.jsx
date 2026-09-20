@@ -1,19 +1,27 @@
 import React, { useEffect, useState } from "react";
+import { BriefcaseBusiness, ChevronRight, CreditCard, History, Home, LocateFixed, MapPin, MessageCircle, Navigation2, Phone, ShieldCheck, Share2 } from "lucide-react";
 import { Button, Card, Header, MapMock, Pill, VehicleImage } from "../components/UI";
 import { recentPlaces, vehicles } from "../data/mockData";
 
-const savedPlaces = [["Дом", "Перник, Изток", "⌂"], ["Работа", "София, Център", "⌖"]];
+const savedPlaces = [
+  { name: "Дом", address: "Перник, Изток", icon: Home },
+  { name: "Работа", address: "София, Център", icon: BriefcaseBusiness }
+];
+
+function PlaceIcon({ icon: Icon }) {
+  return <Icon className="placeGlyph" size={18} strokeWidth={1.8} aria-hidden="true"/>;
+}
 
 function Stepper({ value, onChange }) {
   return <div className="stepper"><button aria-label="Намали пътниците" onClick={() => onChange(Math.max(1, value - 1))}>−</button><b>{value} {value === 1 ? "пътник" : "пътници"}</b><button aria-label="Добави пътник" onClick={() => onChange(Math.min(4, value + 1))}>+</button></div>;
 }
 
 function RouteSummary({ destination, timing, passengers, luggage, payment }) {
-  return <Card className="routeSummary"><div className="summaryLine"><span className="dot"/><span><small>ВЗИМАНЕ</small><b>Текущо местоположение</b></span></div><div className="summaryLine"><span className="dot gray"/><span><small>ДЕСТИНАЦИЯ</small><b>{destination}</b></span></div><div className="summaryMeta"><span>{timing === "now" ? "Сега" : "Днес · 18:30"}</span><span>{passengers} {passengers === 1 ? "пътник" : "пътници"}</span><span>{luggage ? "С багаж" : "Без багаж"}</span><span>{payment === "cash" ? "Кеш" : "Visa"}</span></div></Card>;
+  return <Card className="routeSummary"><div className="summaryLine"><LocateFixed className="routeIcon" size={17} strokeWidth={1.8}/><span><small>ВЗИМАНЕ</small><b>Текущо местоположение</b></span></div><div className="summaryLine"><MapPin className="routeIcon mutedIcon" size={17} strokeWidth={1.8}/><span><small>ДЕСТИНАЦИЯ</small><b>{destination}</b></span></div><div className="summaryMeta"><span>{timing === "now" ? "Сега" : "Днес · 18:30"}</span><span>{passengers} {passengers === 1 ? "пътник" : "пътници"}</span><span>{luggage ? "С багаж" : "Без багаж"}</span><span>{payment === "cash" ? "Кеш" : "Visa"}</span></div></Card>;
 }
 
 function BookingDetails({ timing, setTiming, passengers, setPassengers, luggage, setLuggage, payment, setPayment, toast }) {
-  return <section className="bookingOptions"><div className="eyebrow">ДЕТАЙЛИ ЗА КУРСА</div><div className="segmented"><button className={timing === "now" ? "active" : ""} onClick={() => setTiming("now")}>Сега</button><button className={timing === "later" ? "active" : ""} onClick={() => setTiming("later")}>Насрочи</button></div>{timing === "later" && <button className="optionRow" onClick={() => toast("Избери час за курса")}><span><small>ЧАС НА ВЗИМАНЕ</small><b>Днес · 18:30</b></span><strong>›</strong></button>}<div className="optionRow"><span><small>ПЪТНИЦИ</small><b>Кой ще пътува?</b></span><Stepper value={passengers} onChange={setPassengers}/></div><button className="optionRow" onClick={() => setLuggage(value => !value)}><span><small>БАГАЖ</small><b>{luggage ? "1 голям багаж" : "Без багаж"}</b></span><span className={`toggle ${luggage ? "on" : ""}`}><i/></span></button><button className="optionRow" onClick={() => setPayment(value => value === "cash" ? "card" : "cash")}><span><small>ПЛАЩАНЕ</small><b>{payment === "cash" ? "Кеш" : "Visa •••• 4242"}</b></span><strong>›</strong></button></section>;
+  return <section className="bookingOptions"><div className="eyebrow">ДЕТАЙЛИ ЗА КУРСА</div><div className="segmented"><button className={timing === "now" ? "active" : ""} onClick={() => setTiming("now")}>Сега</button><button className={timing === "later" ? "active" : ""} onClick={() => setTiming("later")}>Насрочи</button></div>{timing === "later" && <button className="optionRow" onClick={() => toast("Избери час за курса")}><span><small>ЧАС НА ВЗИМАНЕ</small><b>Днес · 18:30</b></span><ChevronRight size={19} strokeWidth={1.8}/></button>}<div className="optionRow"><span><small>ПЪТНИЦИ</small><b>Кой ще пътува?</b></span><Stepper value={passengers} onChange={setPassengers}/></div><button className="optionRow" onClick={() => setLuggage(value => !value)}><span><small>БАГАЖ</small><b>{luggage ? "1 голям багаж" : "Без багаж"}</b></span><span className={`toggle ${luggage ? "on" : ""}`}><i/></span></button><button className="optionRow" onClick={() => setPayment(value => value === "cash" ? "card" : "cash")}><span><small>ПЛАЩАНЕ</small><b>{payment === "cash" ? "Кеш" : "Visa •••• 4242"}</b></span><ChevronRight size={19} strokeWidth={1.8}/></button></section>;
 }
 
 export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
@@ -82,9 +90,9 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
         <div className="homeIntro"><h1>Добър вечер, Кристиян</h1></div>
         <MapMock />
         <button className="destinationCard" onClick={() => go("destination")}>
-          <span className="destinationIcon">→</span><span><small>Къде отиваш?</small><b>{destination}</b><small>Натисни, за да промениш маршрута</small></span><strong>›</strong>
+          <span className="destinationIcon"><Navigation2 size={18} strokeWidth={1.8} aria-hidden="true"/></span><span><small>Къде отиваш?</small><b>{destination}</b><small>Натисни, за да промениш маршрута</small></span><ChevronRight className="cardChevron" size={20} strokeWidth={1.8}/>
         </button>
-        <div className="savedPlaces">{savedPlaces.map(([name, address, icon]) => <button key={name} onClick={() => choosePlace(address)}><span>{icon}</span><b>{name}</b></button>)}</div>
+        <div className="savedPlaces">{savedPlaces.map(({ name, address, icon }) => <button key={name} onClick={() => choosePlace(address)}><span><PlaceIcon icon={icon}/></span><b>{name}</b></button>)}</div>
         <div className="eyebrow">ИЗБЕРИ RIVO</div>
         <div className="serviceGrid">
           {Object.values(vehicles).map(v => (
@@ -103,11 +111,11 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
       <Header title="Маршрут" onBack={back}/>
       <main className="content">
         <div><span className="eyebrow">СТЪПКА 1 ОТ 3</span><h1>Къде отиваме?</h1><p className="muted">Избери точна дестинация за по-добра цена.</p></div>
-        <Card className="routeEditor"><div className="summaryLine"><span className="dot"/><span><small>ВЗИМАНЕ</small><b>Текущо местоположение</b></span><span className="locationMark">⌖</span></div><div className="summaryLine destinationInput"><span className="dot gray"/><span className="grow"><small>ДЕСТИНАЦИЯ</small><input value={destination} onChange={e => setDestination(e.target.value)} /></span></div></Card>
+        <Card className="routeEditor"><div className="summaryLine"><LocateFixed className="routeIcon" size={17} strokeWidth={1.8}/><span><small>ВЗИМАНЕ</small><b>Текущо местоположение</b></span><LocateFixed className="locationMark" size={18} strokeWidth={1.8}/></div><div className="summaryLine destinationInput"><MapPin className="routeIcon mutedIcon" size={17} strokeWidth={1.8}/><span className="grow"><small>ДЕСТИНАЦИЯ</small><input value={destination} onChange={e => setDestination(e.target.value)} /></span></div></Card>
         <div className="eyebrow">ЗАПАЗЕНИ МЕСТА</div>
-        <div className="savedPlaceList">{savedPlaces.map(([name, address, icon]) => <button key={name} className="place" onClick={() => setDestination(address)}><span className="placeIcon">{icon}</span><span><b>{name}</b><small>{address}</small></span><strong>›</strong></button>)}</div>
+        <div className="savedPlaceList">{savedPlaces.map(({ name, address, icon }) => <button key={name} className="place" onClick={() => setDestination(address)}><span className="placeIcon"><PlaceIcon icon={icon}/></span><span><b>{name}</b><small>{address}</small></span><ChevronRight className="cardChevron" size={19} strokeWidth={1.8}/></button>)}</div>
         <div className="eyebrow">ПОСЛЕДНИ</div>
-        <div className="savedPlaceList">{recentPlaces.slice(0, 2).map(([name, detail]) => <button className="place" key={name} onClick={() => setDestination(name)}><span className="placeIcon">⌁</span><span><b>{name}</b><small>{detail}</small></span><strong>›</strong></button>)}</div>
+        <div className="savedPlaceList">{recentPlaces.slice(0, 2).map(([name, detail]) => <button className="place" key={name} onClick={() => setDestination(name)}><span className="placeIcon"><History className="placeGlyph" size={18} strokeWidth={1.8}/></span><span><b>{name}</b><small>{detail}</small></span><ChevronRight className="cardChevron" size={19} strokeWidth={1.8}/></button>)}</div>
         <div className="spacer"/><Button onClick={() => go("rides")} disabled={!destination.trim()}>ПРОДЪЛЖИ</Button>
       </main>
     </>
@@ -138,7 +146,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
   if (screen === "confirm") return (
     <>
       <Header title="Потвърди курса" onBack={back}/>
-      <main className="content">
+      <main className="content confirmContent">
         <div><span className="eyebrow">СТЪПКА 3 ОТ 3</span><h1>Всичко изглежда добре?</h1><p className="muted">Провери детайлите преди да поръчаш.</p></div>
         <RouteSummary destination={destination} timing={timing} passengers={passengers} luggage={luggage} payment={payment}/>
         <Card className="confirmVehicle"><div><span className="eyebrow">ТВОЯТ АВТОМОБИЛ</span><h2>{selected.label}</h2><small>{selected.model} · до 4 места</small></div><VehicleImage src={selected.image} alt={selected.model} compact/></Card>
@@ -154,9 +162,9 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
       <main className="content">
         <div className="statusHeader"><div><span className="eyebrow">КУРСЪТ Е ПОТВЪРДЕН</span><h1>{eta ? `Идва след ${eta} мин` : "Шофьорът пристигна"}</h1><p className="muted">{selected.model} · {selected.label}</p></div><span className="liveDot"/></div>
         <MapMock mode="driver" progress={68 - eta * 6}/>
-        <Card className="driverProfile"><div className="driverAvatar">И</div><div className="grow"><b>Иван Петров</b><small>★ 4.9 · 248 курса</small><small>{selected.model} · CB 5237 MK</small></div><div className="actions"><button onClick={() => toast("Обаждане към Иван…")}>☎</button><button onClick={() => toast("Отваряме чат…")}>✉</button></div></Card>
+        <Card className="driverProfile"><div className="driverAvatar">И</div><div className="grow"><b>Иван Петров</b><small>★ 4.9 · 248 курса</small><small>{selected.model} · CB 5237 MK</small></div><div className="actions"><button aria-label="Обади се на Иван" onClick={() => toast("Обаждане към Иван…")}><Phone size={17} strokeWidth={1.8}/></button><button aria-label="Отвори чат" onClick={() => toast("Отваряме чат…")}><MessageCircle size={17} strokeWidth={1.8}/></button></div></Card>
         <Card className="pickupSummary"><span><small>ВЗИМАНЕ</small><b>Текущо местоположение</b></span><Pill live>{eta ? "НА ПЪТ" : "ПРИСТИГНА"}</Pill></Card>
-        <div className="twoCols"><Button secondary onClick={() => toast("Курсът е споделен")}>Сподели</Button><Button secondary onClick={() => toast("RIVO Safety е активен")}>Safety</Button></div>
+        <div className="twoCols"><Button secondary onClick={() => toast("Курсът е споделен")}><Share2 size={15} strokeWidth={1.8}/> Сподели</Button><Button secondary onClick={() => toast("RIVO Safety е активен")}><ShieldCheck size={15} strokeWidth={1.8}/> Safety</Button></div>
         <div className="spacer"/><Button onClick={() => setScreen("trip")}>ДЕМО: ШОФЬОРЪТ ПРИСТИГНА</Button><button className="quietAction" onClick={() => { setHistory([]); setScreen("home"); }}>Откажи курса</button>
       </main>
     </>
@@ -194,13 +202,13 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
       <main className="content">
         <Card className="profileHero"><div className="avatar">K</div><div><h2>Кристиян</h2><small>RIVO клиент · 27 пътувания</small></div><span className="profileBadge">4.9 ★</span></Card>
         <div className="eyebrow">ЗАПАЗЕНИ МЕСТА</div>
-        <div className="savedPlaceList profilePlaces">{savedPlaces.map(([name, address, icon]) => <button className="place" key={name} onClick={() => { setDestination(address); go("destination"); }}><span className="placeIcon">{icon}</span><span><b>{name}</b><small>{address}</small></span><strong>›</strong></button>)}</div>
-        <div className="eyebrow">ПЛАЩАНЕ</div><Card className="paymentProfile"><span className="paymentIcon">V</span><span><b>Visa •••• 4242</b><small>Основен метод</small></span><strong>›</strong></Card>
+        <div className="savedPlaceList profilePlaces">{savedPlaces.map(({ name, address, icon }) => <button className="place" key={name} onClick={() => { setDestination(address); go("destination"); }}><span className="placeIcon"><PlaceIcon icon={icon}/></span><span><b>{name}</b><small>{address}</small></span><ChevronRight className="cardChevron" size={19} strokeWidth={1.8}/></button>)}</div>
+        <div className="eyebrow">ПЛАЩАНЕ</div><Card className="paymentProfile"><span className="paymentIcon"><CreditCard size={16} strokeWidth={1.8}/></span><span><b>Visa •••• 4242</b><small>Основен метод</small></span><ChevronRight className="cardChevron" size={19} strokeWidth={1.8}/></Card>
         <div className="eyebrow">ПОСЛЕДНИ ПЪТУВАНИЯ</div>
         <div className="historyList">{historyItems.map((item, index) => <Card className="historyRow" key={`${item.route}-${index}`}><span><b>{item.route}</b><small>{item.service}</small><small>{item.date}</small></span><strong>{item.price} €</strong></Card>)}</div>
         <div className="eyebrow">RIVO ЕКОСИСТЕМА</div>
-        <Card className="switchCard" onClick={openDriver}><span className="switchIcon">R</span><span><b>RIVO Driver</b><small>Шофьорско приложение</small></span><b className="yellow">→</b></Card>
-        <Card className="switchCard" onClick={openAdmin}><span className="switchIcon white">A</span><span><b>RIVO Control</b><small>Администрация и автопарк</small></span><b className="yellow">→</b></Card>
+        <Card className="switchCard" onClick={openDriver}><span className="switchIcon">R</span><span><b>RIVO Driver</b><small>Шофьорско приложение</small></span><ChevronRight className="cardChevron yellow" size={19} strokeWidth={1.8}/></Card>
+        <Card className="switchCard" onClick={openAdmin}><span className="switchIcon white">A</span><span><b>RIVO Control</b><small>Администрация и автопарк</small></span><ChevronRight className="cardChevron yellow" size={19} strokeWidth={1.8}/></Card>
       </main>
     </>
   );

@@ -1,4 +1,5 @@
 import React from "react";
+import { ChevronLeft } from "lucide-react";
 
 export function Logo() {
   return <div className="logo">RIVO</div>;
@@ -7,7 +8,7 @@ export function Logo() {
 export function Header({ title, onBack, right, logo = false }) {
   return (
     <header className="header">
-      <div>{onBack ? <button className="iconBtn" onClick={onBack}>‹</button> : null}</div>
+      <div>{onBack ? <button className="iconBtn" aria-label="Назад" onClick={onBack}><ChevronLeft size={19} strokeWidth={1.8}/></button> : null}</div>
       <div className="headerCenter">{logo ? <Logo /> : <b>{title}</b>}</div>
       <div className="headerRight">{right || null}</div>
     </header>
