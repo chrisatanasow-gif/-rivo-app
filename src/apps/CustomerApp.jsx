@@ -12,8 +12,9 @@ function PlaceIcon({ icon: Icon }) {
   return <Icon className="placeGlyph" size={18} strokeWidth={1.8} aria-hidden="true"/>;
 }
 
-function PremiumBadge({ model = "BMW 530d Touring" }) {
-  return <div className="premiumBadge"><span className="premiumMark"><ShieldCheck size={17} strokeWidth={1.8}/></span><span><b>RIVO PREMIUM</b><small>{model}</small></span><em>PREMIUM CLASS</em></div>;
+function RideClassBadge({ vehicle }) {
+  const classLabel = vehicle.id === "city" ? "CITY CLASS" : "PREMIUM CLASS";
+  return <div className="premiumBadge"><span className="premiumMark"><ShieldCheck size={17} strokeWidth={1.8}/></span><span><b>{vehicle.label}</b><small>{vehicle.model}</small></span><em>{classLabel}</em></div>;
 }
 
 function Stepper({ value, onChange }) {
@@ -42,8 +43,8 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
   const [timing, setTiming] = useState("now");
   const [payment, setPayment] = useState("cash");
   const historySeed = [
-    { route: "Перник → София", service: "RIVO Premium · BMW 530d Touring", price: 34, date: "Днес, 09:40" },
-    { route: "Перник · Център", service: "RIVO City · Audi A1", price: 8, date: "Вчера, 18:20" }
+    { route: "Перник → София", service: `${vehicles.premium.label} · ${vehicles.premium.model}`, price: 34, date: "Днес, 09:40" },
+    { route: "Перник · Център", service: `${vehicles.city.label} · ${vehicles.city.model}`, price: 8, date: "Вчера, 18:20" }
   ];
   const [historyItems, setHistoryItems] = useState(historySeed);
   const selected = vehicles[ride];
@@ -169,7 +170,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
     <>
       <Header logo right={<Pill live>В ПЪТУВАНЕ</Pill>}/>
       <main className="content">
-        <div className="statusHeader"><div><span className="eyebrow">RIVO PREMIUM · В ПЪТ</span><h1>{Math.max(1, 16 - Math.floor(tripProgress / 7))} мин до {destination.split(",")[0]}</h1><p className="muted">Пристигаме спокойно и навреме.</p></div><span className="liveDot"/></div>
+        <div className="statusHeader"><div><span className="eyebrow">{selected.label} · В ПЪТ</span><h1>{Math.max(1, 16 - Math.floor(tripProgress / 7))} мин до {destination.split(",")[0]}</h1><p className="muted">Пристигаме спокойно и навреме.</p></div><span className="liveDot"/></div>
         <MapMock mode="driver" progress={tripProgress}/><div className="progress"><i style={{width:`${tripProgress}%`}}/></div>
         <Card className="activeTripCard"><div className="driverAvatar">И</div><span className="grow"><b>Иван Петров</b><small>{selected.model} · CB 5237 MK</small></span><strong className="price">{price} €</strong></Card>
         <Card className="routeSummary compactSummary"><div className="summaryLine"><span className="dot"/><span><small>ПРИСТИГАНЕ</small><b>{destination}</b></span></div><div className="summaryMeta"><span>{passengers} {passengers === 1 ? "пътник" : "пътници"}</span><span>{luggage ? "С багаж" : "Без багаж"}</span><span>{payment === "cash" ? "Кеш" : "Visa"}</span></div></Card>
@@ -183,7 +184,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
       <Header logo/>
       <main className="content centered">
         <div className="check">✓</div><div><span className="eyebrow">КУРСЪТ Е ЗАВЪРШЕН</span><h1>Пристигнахте</h1><p className="muted">Благодарим, че пътувахте с RIVO.</p></div>
-        <Card className="receipt"><PremiumBadge model={selected.model}/><div className="receiptTop"><span><b>Завършен курс</b><small>{selected.label}</small></span><strong>{price + tip} €</strong></div><div className="receiptRow"><span>Маршрут</span><b>Перник → {destination.split(",")[0]}</b></div><div className="receiptRow"><span>Време</span><b>38 мин · 31 км</b></div><div className="receiptRow"><span>Плащане</span><b>{payment === "cash" ? "Кеш" : "Visa •••• 4242"}</b></div><div className="receiptRow total"><span>Общо</span><strong>{price + tip} €</strong></div></Card>
+        <Card className="receipt"><RideClassBadge vehicle={selected}/><div className="receiptTop"><span><b>Завършен курс</b><small>{selected.label}</small></span><strong>{price + tip} €</strong></div><div className="receiptRow"><span>Маршрут</span><b>Перник → {destination.split(",")[0]}</b></div><div className="receiptRow"><span>Време</span><b>38 мин · 31 км</b></div><div className="receiptRow"><span>Плащане</span><b>{payment === "cash" ? "Кеш" : "Visa •••• 4242"}</b></div><div className="receiptRow total"><span>Общо</span><strong>{price + tip} €</strong></div></Card>
         <div className="ratingBlock"><b>Как беше пътуването?</b><div className="stars">{[1,2,3,4,5].map(n => <button key={n} className={n <= rating ? "" : "off"} onClick={() => setRating(n)}>★</button>)}</div></div>
         <div className="tipBlock"><span className="eyebrow">БЛАГОДАРИ НА ИВАН</span><div className="tipGrid">{[0,2,5,10].map(n => <button key={n} className={tip === n ? "selected" : ""} onClick={() => setTip(n)}>{n === 0 ? "Без бакшиш" : `+${n} €`}</button>)}</div></div>
         <div className="spacer"/><Button onClick={finishRide}>ГОТОВО</Button>
