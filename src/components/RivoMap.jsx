@@ -139,7 +139,7 @@ export default function RivoMap({ pickup, destination, route, driverProgress, fr
         .addTo(map);
     }
 
-    if (isValidLocation(pickup) && isValidLocation(destination) && route?.geometry) {
+    if (route?.geometry) {
       const routeGeometry = {
         type: "FeatureCollection",
         features: [{
@@ -182,10 +182,14 @@ export default function RivoMap({ pickup, destination, route, driverProgress, fr
     if (!map || !mapReady || !Array.isArray(coordinates) || coordinates.length < 2) return;
 
     const progress = Number.isFinite(driverProgress) ? clamp(driverProgress, 0, 1) : null;
+    const progressIndex = progress === null ? 0 : Math.floor(progress * (coordinates.length - 1));
     const startIndex = progress !== null && frameProgress === "remaining"
-      ? Math.min(coordinates.length - 2, Math.floor(progress * (coordinates.length - 1)))
+      ? Math.min(coordinates.length - 2, progressIndex)
       : 0;
-    const visibleCoordinates = coordinates.slice(startIndex);
+    const endIndex = progress !== null && frameProgress === "to-pickup"
+      ? Math.max(1, Math.min(coordinates.length - 1, progressIndex))
+      : coordinates.length - 1;
+    const visibleCoordinates = coordinates.slice(startIndex, endIndex + 1);
     const bounds = new maplibregl.LngLatBounds();
     visibleCoordinates.forEach(coordinate => bounds.extend(coordinate));
     if (progress !== null) bounds.extend(coordinates[Math.round(progress * (coordinates.length - 1))]);

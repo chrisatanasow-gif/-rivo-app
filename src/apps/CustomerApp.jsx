@@ -3,7 +3,7 @@ import { AlertCircle, BriefcaseBusiness, ChevronRight, CreditCard, History, Home
 import { Button, Card, Header, Pill, VehicleImage } from "../components/UI";
 import RivoMap from "../components/RivoMap";
 import { vehicles } from "../data/mockData";
-import { DEFAULT_PICKUP_LOCATION, requestCurrentLocation } from "../services/locationService";
+import { createSimulatedDriverLocation, DEFAULT_PICKUP_LOCATION, requestCurrentLocation } from "../services/locationService";
 import { getRouteGeometry } from "../services/routingService";
 
 const savedPlaces = [
@@ -60,6 +60,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
   const [locationStatus, setLocationStatus] = useState("requesting");
   const [destination, setDestination] = useState({ label: "София, Център", lat: 42.6977, lng: 23.3219 });
   const [route, setRoute] = useState(null);
+  const [driverRoute, setDriverRoute] = useState(null);
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [eta, setEta] = useState(vehicles.city.eta);
   const [tripProgress, setTripProgress] = useState(18);
@@ -79,7 +80,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
   const [historyItems, setHistoryItems] = useState(historySeed);
   const selected = vehicles[ride];
   const price = pricing[ride];
-  const arrivingDriverProgress = selected.eta ? eta / selected.eta : 0;
+  const arrivingDriverProgress = selected.eta ? 1 - (eta / selected.eta) : 1;
   const tripDriverProgress = tripProgress / 100;
 
   useEffect(() => {
@@ -103,6 +104,21 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
     });
     return () => { active = false; };
   }, [pickup, destination]);
+
+  useEffect(() => {
+    const driverLocation = createSimulatedDriverLocation(pickup);
+    if (!driverLocation || !pickup) {
+      setDriverRoute(null);
+      return undefined;
+    }
+
+    let active = true;
+    setDriverRoute(null);
+    getRouteGeometry(driverLocation, pickup).then(result => {
+      if (active) setDriverRoute(result);
+    });
+    return () => { active = false; };
+  }, [pickup]);
 
   const go = (name) => {
     setHistory(h => [...h, screen]);
@@ -250,7 +266,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
       <Header logo right={<Pill live>ШОФЬОРЪТ ИДВА</Pill>}/>
         <main className="content customerContent">
         <div className="statusHeader"><div><span className="eyebrow">КУРСЪТ Е ПОТВЪРДЕН</span><h1>{eta ? `Идва след ${eta} мин` : "Шофьорът пристигна"}</h1><p className="muted">{selected.model} · {selected.label}</p></div><span className="liveDot"/></div>
-        <RivoMap pickup={pickup} destination={destination} route={route} driverProgress={arrivingDriverProgress}/>
+        <RivoMap pickup={pickup} destination={null} route={driverRoute} driverProgress={arrivingDriverProgress} frameProgress="to-pickup"/>
         <Card className="driverProfile"><div className="driverAvatar">И</div><div className="grow"><b>Иван Петров</b><small>★ 4.9 · 248 курса</small><small>{selected.model} · CB 5237 MK</small></div><div className="actions"><button aria-label="Обади се на Иван" onClick={() => toast("Обаждане към Иван…")}><Phone size={17} strokeWidth={1.8}/></button><button aria-label="Отвори чат" onClick={() => toast("Отваряме чат…")}><MessageCircle size={17} strokeWidth={1.8}/></button></div></Card>
         <Card className="pickupSummary"><span><small>ВЗИМАНЕ</small><b>Текущо местоположение</b></span><Pill live>{eta ? "НА ПЪТ" : "ПРИСТИГНА"}</Pill></Card>
         <div className="twoCols"><Button secondary onClick={() => toast("Курсът е споделен")}><Share2 size={15} strokeWidth={1.8}/> Сподели</Button><Button secondary onClick={() => toast("RIVO Safety е активен")}><ShieldCheck size={15} strokeWidth={1.8}/> Safety</Button></div>

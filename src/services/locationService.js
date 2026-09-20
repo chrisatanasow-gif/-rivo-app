@@ -12,6 +12,14 @@ export function createLocation(label, lat, lng) {
   };
 }
 
+export function createSimulatedDriverLocation(pickup) {
+  if (!pickup || !Number.isFinite(Number(pickup.lat)) || !Number.isFinite(Number(pickup.lng))) {
+    return null;
+  }
+
+  return createLocation("RIVO шофьор", Number(pickup.lat) + 0.012, Number(pickup.lng) - 0.018);
+}
+
 export function requestCurrentLocation() {
   return new Promise((resolve) => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
