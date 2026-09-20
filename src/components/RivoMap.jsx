@@ -4,7 +4,19 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { MapMock } from "./UI";
 
 const DEFAULT_CENTER = { lat: 42.6019, lng: 23.0334 };
-const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
+const OSM_RASTER_STYLE = {
+  version: 8,
+  sources: {
+    osm: {
+      type: "raster",
+      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: "© OpenStreetMap contributors"
+    }
+  },
+  layers: [{ id: "osm", type: "raster", source: "osm" }]
+};
 
 export default function RivoMap({ pickup, destination, route, onDestinationSelect, onMapReady, recenterSignal, className = "" }) {
   const mapRef = useRef(null);
@@ -26,10 +38,12 @@ export default function RivoMap({ pickup, destination, route, onDestinationSelec
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
+    let loadingTimeout;
+
     try {
       const map = new maplibregl.Map({
         container: mapContainerRef.current,
-        style: MAP_STYLE_URL,
+        style: OSM_RASTER_STYLE,
         center: [DEFAULT_CENTER.lng, DEFAULT_CENTER.lat],
         zoom: 12,
         attributionControl: false,
@@ -42,10 +56,24 @@ export default function RivoMap({ pickup, destination, route, onDestinationSelec
       map.addControl(new maplibregl.NavigationControl({ showCompass: false, showZoom: true }), "bottom-right");
       map.addControl(new maplibregl.AttributionControl({
         compact: true,
-        customAttribution: "© OpenFreeMap © OpenStreetMap contributors"
+        customAttribution: "© OpenStreetMap contributors"
       }), "bottom-left");
 
+      let styleReady = false;
+      const failMap = () => {
+        if (styleReady) return;
+        window.clearTimeout(loadingTimeout);
+        setMapLoading(false);
+        setMapError(true);
+        if (mapRef.current === map) {
+          map.remove();
+          mapRef.current = null;
+        }
+      };
+
       map.on("load", () => {
+        styleReady = true;
+        window.clearTimeout(loadingTimeout);
         setMapReady(true);
         setMapLoading(false);
         setMapError(false);
@@ -57,14 +85,20 @@ export default function RivoMap({ pickup, destination, route, onDestinationSelec
         onDestinationSelectRef.current?.({ lat, lng });
       });
 
-      map.on("error", () => {
-        setMapError(true);
-      });
+      map.on("error", failMap);
+      loadingTimeout = window.setTimeout(failMap, 7000);
     } catch (error) {
+      window.clearTimeout(loadingTimeout);
+      setMapLoading(false);
       setMapError(true);
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
     }
 
     return () => {
+      window.clearTimeout(loadingTimeout);
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
