@@ -40,6 +40,8 @@ small{display:block;margin-top:3px}
 .serviceCard span{display:block;color:var(--yellow);font-size:10px;font-weight:900;margin-top:6px}
 .vehicleImage{height:128px;border-radius:16px;background:radial-gradient(circle at 50% 80%,rgba(255,212,0,.11),transparent 48%),linear-gradient(160deg,#1a1d24,#0e0f12);display:grid;place-items:center;overflow:hidden}
 .vehicleImage.compact{height:92px}
+.serviceGrid .vehicleImage.compact{padding:8px 12px}
+.serviceGrid .vehicleImage.compact img{width:100%;height:100%;object-fit:contain}
 .vehicleImage img{width:128%;height:116%;object-fit:contain;filter:drop-shadow(0 12px 14px rgba(0,0,0,.55))}
 .field{padding:13px 14px;display:flex;gap:11px;align-items:center}
 .field label{display:block;font-size:9px;color:var(--muted);letter-spacing:.1em;font-weight:850;margin-bottom:4px}
