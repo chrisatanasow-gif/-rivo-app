@@ -4,18 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { MapMock } from "./UI";
 
 const DEFAULT_CENTER = { lat: 42.6019, lng: 23.0334 };
-const DARK_MAP_STYLE = {
-  version: 8,
-  sources: {
-    carto: {
-      type: "raster",
-      tiles: ["https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      attribution: "© OpenStreetMap contributors © CARTO"
-    }
-  },
-  layers: [{ id: "carto-dark", type: "raster", source: "carto" }]
-};
+const DARK_MAP_STYLE = "https://tiles.openfreemap.org/styles/dark";
 
 export default function RivoMap({ pickup, destination, route, onDestinationSelect, onMapReady, recenterSignal, className = "" }) {
   const mapRef = useRef(null);
@@ -50,7 +39,10 @@ export default function RivoMap({ pickup, destination, route, onDestinationSelec
       mapRef.current = map;
 
       map.addControl(new maplibregl.NavigationControl({ showCompass: false, showZoom: true }), "bottom-right");
-      map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
+      map.addControl(new maplibregl.AttributionControl({
+        compact: true,
+        customAttribution: "© OpenFreeMap © OpenStreetMap contributors"
+      }), "bottom-left");
 
       map.on("load", () => {
         setMapReady(true);
