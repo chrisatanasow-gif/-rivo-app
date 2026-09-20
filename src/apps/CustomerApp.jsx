@@ -79,7 +79,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
     <>
       <Header logo right={<button className="iconBtn profileBtn" onClick={() => go("profile")}>K</button>} />
       <main className="content homeContent">
-        <div className="homeIntro"><span className="eyebrow">ДОБЪР ВЕЧЕР, КРИСТИЯН</span><h1>Къде тръгваме?</h1><p className="muted">Твоят град. Твоят RIVO.</p></div>
+        <div className="homeIntro"><h1>Добър вечер, Кристиян</h1></div>
         <MapMock />
         <button className="destinationCard" onClick={() => go("destination")}>
           <span className="destinationIcon">→</span><span><small>Къде отиваш?</small><b>{destination}</b><small>Натисни, за да промениш маршрута</small></span><strong>›</strong>
