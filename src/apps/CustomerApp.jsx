@@ -31,9 +31,9 @@ function BookingDetails({ timing, setTiming, passengers, setPassengers, luggage,
 export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
   const [screen, setScreen] = useState("home");
   const [history, setHistory] = useState([]);
-  const [ride, setRide] = useState("premium");
+  const [ride, setRide] = useState("city");
   const [destination, setDestination] = useState("София, Център");
-  const [eta, setEta] = useState(vehicles.premium.eta);
+  const [eta, setEta] = useState(vehicles.city.eta);
   const [tripProgress, setTripProgress] = useState(18);
   const [rating, setRating] = useState(5);
   const [tip, setTip] = useState(0);
@@ -63,7 +63,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
 
   const choosePlace = (name) => {
     setDestination(name);
-    go("rides");
+    go("destination");
   };
 
   const finishRide = () => {
@@ -97,15 +97,6 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
           <span className="destinationIcon"><Navigation2 size={18} strokeWidth={1.8} aria-hidden="true"/></span><span><small>Къде отиваш?</small><b>{destination}</b><small>Натисни, за да промениш маршрута</small></span><ChevronRight className="cardChevron" size={20} strokeWidth={1.8}/>
         </button>
         <div className="savedPlaces">{savedPlaces.map(({ name, address, icon }) => <button key={name} onClick={() => choosePlace(address)}><span><PlaceIcon icon={icon}/></span><b>{name}</b></button>)}</div>
-        <div className="eyebrow">ИЗБЕРИ RIVO</div>
-        <div className="serviceGrid">
-          {Object.values(vehicles).map(v => (
-            <button key={v.id} className="serviceCard" onClick={() => { setRide(v.id); go("destination"); }}>
-              <VehicleImage src={v.image} alt={v.model} compact />
-              <b>{v.label}</b><small>{v.model}</small><span>Идва след ~{v.eta} мин</span>
-            </button>
-          ))}
-        </div>
       </main>
     </>
   );
