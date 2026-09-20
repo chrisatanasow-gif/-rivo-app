@@ -82,7 +82,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
         <div className="homeIntro"><span className="eyebrow">ДОБЪР ВЕЧЕР, КРИСТИЯН</span><h1>Къде тръгваме?</h1><p className="muted">Твоят град. Твоят RIVO.</p></div>
         <MapMock />
         <button className="destinationCard" onClick={() => go("destination")}>
-          <span className="destinationIcon">→</span><span><small>ДОСТИГАМЕ ДО</small><b>{destination}</b><small>Натисни, за да промениш маршрута</small></span><strong>›</strong>
+          <span className="destinationIcon">→</span><span><small>Къде отиваш?</small><b>{destination}</b><small>Натисни, за да промениш маршрута</small></span><strong>›</strong>
         </button>
         <div className="savedPlaces">{savedPlaces.map(([name, address, icon]) => <button key={name} onClick={() => choosePlace(address)}><span>{icon}</span><b>{name}</b></button>)}</div>
         <div className="eyebrow">ИЗБЕРИ RIVO</div>
