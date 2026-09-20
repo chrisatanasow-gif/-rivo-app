@@ -12,6 +12,10 @@ function PlaceIcon({ icon: Icon }) {
   return <Icon className="placeGlyph" size={18} strokeWidth={1.8} aria-hidden="true"/>;
 }
 
+function PremiumBadge({ model = "BMW 530d Touring" }) {
+  return <div className="premiumBadge"><span className="premiumMark"><ShieldCheck size={17} strokeWidth={1.8}/></span><span><b>RIVO PREMIUM</b><small>{model}</small></span><em>PREMIUM CLASS</em></div>;
+}
+
 function Stepper({ value, onChange }) {
   return <div className="stepper"><button aria-label="Намали пътниците" onClick={() => onChange(Math.max(1, value - 1))}>−</button><b>{value} {value === 1 ? "пътник" : "пътници"}</b><button aria-label="Добави пътник" onClick={() => onChange(Math.min(4, value + 1))}>+</button></div>;
 }
@@ -188,7 +192,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
       <Header logo/>
       <main className="content centered">
         <div className="check">✓</div><div><span className="eyebrow">КУРСЪТ Е ЗАВЪРШЕН</span><h1>Пристигнахте</h1><p className="muted">Благодарим, че пътувахте с RIVO.</p></div>
-        <Card className="receipt"><VehicleImage src={selected.image} alt={selected.model} compact/><div className="receiptTop"><span><b>{selected.label}</b><small>{selected.model}</small></span><strong>{price + tip} €</strong></div><div className="receiptRow"><span>Маршрут</span><b>Перник → {destination.split(",")[0]}</b></div><div className="receiptRow"><span>Време</span><b>38 мин · 31 км</b></div><div className="receiptRow"><span>Плащане</span><b>{payment === "cash" ? "Кеш" : "Visa •••• 4242"}</b></div><div className="receiptRow total"><span>Общо</span><strong>{price + tip} €</strong></div></Card>
+        <Card className="receipt"><PremiumBadge model={selected.model}/><div className="receiptTop"><span><b>Завършен курс</b><small>{selected.label}</small></span><strong>{price + tip} €</strong></div><div className="receiptRow"><span>Маршрут</span><b>Перник → {destination.split(",")[0]}</b></div><div className="receiptRow"><span>Време</span><b>38 мин · 31 км</b></div><div className="receiptRow"><span>Плащане</span><b>{payment === "cash" ? "Кеш" : "Visa •••• 4242"}</b></div><div className="receiptRow total"><span>Общо</span><strong>{price + tip} €</strong></div></Card>
         <div className="ratingBlock"><b>Как беше пътуването?</b><div className="stars">{[1,2,3,4,5].map(n => <button key={n} className={n <= rating ? "" : "off"} onClick={() => setRating(n)}>★</button>)}</div></div>
         <div className="tipBlock"><span className="eyebrow">БЛАГОДАРИ НА ИВАН</span><div className="tipGrid">{[0,2,5,10].map(n => <button key={n} className={tip === n ? "selected" : ""} onClick={() => setTip(n)}>{n === 0 ? "Без бакшиш" : `+${n} €`}</button>)}</div></div>
         <div className="spacer"/><Button onClick={finishRide}>ГОТОВО</Button>
