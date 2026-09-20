@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from "react";
-import { AlertCircle, BriefcaseBusiness, ChevronRight, CreditCard, History, Home, LoaderCircle, LocateFixed, MapPin, MessageCircle, Navigation2, Phone, ShieldCheck, Share2 } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { AlertCircle, BriefcaseBusiness, ChevronRight, CreditCard, History, Home, LoaderCircle, LocateFixed, MapPin, MessageCircle, Navigation2, Phone, Search, ShieldCheck, Share2 } from "lucide-react";
 import { Button, Card, Header, Pill, VehicleImage } from "../components/UI";
 import RivoMap from "../components/RivoMap";
 import { vehicles } from "../data/mockData";
 import { createSimulatedDriverLocation, DEFAULT_PICKUP_LOCATION, requestCurrentLocation } from "../services/locationService";
+import { reverseGeocode, searchAddresses } from "../services/geocodingService";
 import { getRouteGeometry } from "../services/routingService";
 
 const savedPlaces = [
@@ -21,13 +22,14 @@ function locationLabel(location) {
   return location?.label || "Избери дестинация";
 }
 
-function CustomerMap({ pickup, destination, route, onDestinationSelect, onRecenter, recenterSignal, status }) {
+function CustomerMap({ pickup, destination, route, onDestinationSelect, onRecenter, recenterSignal, status, addressStatus }) {
   return <div className="customerMapWrap">
     <RivoMap pickup={pickup} destination={destination} route={route} onDestinationSelect={onDestinationSelect} recenterSignal={recenterSignal}/>
     <button className="mapRecenter" aria-label="Центрирай текущото местоположение" onClick={onRecenter}><LocateFixed size={18} strokeWidth={1.8}/></button>
     {status === "requesting" && <span className="mapStatus">Търсим местоположението…</span>}
     {status === "denied" && <span className="mapStatus">GPS е отказан · използваме Перник</span>}
     {status === "unavailable" && <span className="mapStatus">GPS не е наличен · използваме Перник</span>}
+    {addressStatus === "loading" && <span className="mapStatus">Разпознаваме адреса…</span>}
   </div>;
 }
 
@@ -44,8 +46,8 @@ function Stepper({ value, onChange }) {
   return <div className="stepper"><button aria-label="Намали пътниците" onClick={() => onChange(Math.max(1, value - 1))}>−</button><b>{value} {value === 1 ? "пътник" : "пътници"}</b><button aria-label="Добави пътник" onClick={() => onChange(Math.min(4, value + 1))}>+</button></div>;
 }
 
-function RouteSummary({ destination, timing, passengers, luggage, payment, route }) {
-  return <Card className="routeSummary"><div className="summaryLine"><LocateFixed className="routeIcon" size={17} strokeWidth={1.8}/><span><small>ВЗИМАНЕ</small><b>Текущо местоположение</b></span></div><div className="summaryLine"><MapPin className="routeIcon mutedIcon" size={17} strokeWidth={1.8}/><span><small>ДЕСТИНАЦИЯ</small><b>{locationLabel(destination)}</b></span></div><div className="summaryMeta"><span>{route ? `${route.distanceKm.toFixed(1)} км · ${route.durationMinutes} мин` : "Изчисляваме маршрута…"}</span><span>{timing === "now" ? "Сега" : "Днес · 18:30"}</span><span>{passengers} {passengers === 1 ? "пътник" : "пътници"}</span><span>{luggage ? "С багаж" : "Без багаж"}</span><span>{payment === "cash" ? "Кеш" : "Visa"}</span></div></Card>;
+function RouteSummary({ pickup, destination, timing, passengers, luggage, payment, route }) {
+  return <Card className="routeSummary"><div className="summaryLine"><LocateFixed className="routeIcon" size={17} strokeWidth={1.8}/><span><small>ВЗИМАНЕ</small><b>{locationLabel(pickup)}</b></span></div><div className="summaryLine"><MapPin className="routeIcon mutedIcon" size={17} strokeWidth={1.8}/><span><small>ДЕСТИНАЦИЯ</small><b>{locationLabel(destination)}</b></span></div><div className="summaryMeta"><span>{route ? `${route.distanceKm.toFixed(1)} км · ${route.durationMinutes} мин` : "Изчисляваме маршрута…"}</span><span>{timing === "now" ? "Сега" : "Днес · 18:30"}</span><span>{passengers} {passengers === 1 ? "пътник" : "пътници"}</span><span>{luggage ? "С багаж" : "Без багаж"}</span><span>{payment === "cash" ? "Кеш" : "Visa"}</span></div></Card>;
 }
 
 function BookingDetails({ timing, setTiming, passengers, setPassengers, luggage, setLuggage, payment, setPayment, toast }) {
@@ -61,6 +63,10 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
   const [destination, setDestination] = useState({ label: "София, Център", lat: 42.6977, lng: 23.3219 });
   const [route, setRoute] = useState(null);
   const [driverRoute, setDriverRoute] = useState(null);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchStatus, setSearchStatus] = useState("idle");
+  const [addressStatus, setAddressStatus] = useState("idle");
+  const reverseRequestRef = useRef(0);
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [eta, setEta] = useState(vehicles.city.eta);
   const [tripProgress, setTripProgress] = useState(18);
@@ -85,10 +91,14 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
 
   useEffect(() => {
     let active = true;
-    requestCurrentLocation().then(result => {
+    requestCurrentLocation().then(async result => {
       if (!active) return;
       setPickup(result.location);
       setLocationStatus(result.status);
+      try {
+        const geocodedPickup = await reverseGeocode(result.location);
+        if (active && geocodedPickup) setPickup(location => ({ ...location, ...geocodedPickup }));
+      } catch (error) {}
     });
     return () => { active = false; };
   }, []);
@@ -134,7 +144,53 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
 
   const choosePlace = (location) => {
     setDestination(location);
+    setSearchResults([]);
+    setSearchStatus("idle");
     go("destination");
+  };
+
+  const submitAddressSearch = async event => {
+    event.preventDefault();
+    const query = destination.label.trim();
+    if (!query) return;
+
+    setSearchStatus("loading");
+    setSearchResults([]);
+    try {
+      const results = await searchAddresses(query, pickup);
+      setSearchResults(results);
+      setSearchStatus(results.length ? "success" : "empty");
+    } catch (error) {
+      setSearchStatus("error");
+    }
+  };
+
+  const selectSearchResult = result => {
+    setDestination(result);
+    setSearchResults([]);
+    setSearchStatus("idle");
+  };
+
+  const selectMapDestination = async location => {
+    const requestId = reverseRequestRef.current + 1;
+    reverseRequestRef.current = requestId;
+    setAddressStatus("loading");
+    setDestination({ label: "Разпознаваме адреса…", ...location });
+    try {
+      const result = await reverseGeocode(location);
+      if (requestId !== reverseRequestRef.current) return;
+      setDestination({
+        label: result?.label || `Точка ${Number(location.lat).toFixed(5)}, ${Number(location.lng).toFixed(5)}`,
+        ...location,
+        ...(result || {})
+      });
+    } catch (error) {
+      if (requestId === reverseRequestRef.current) {
+        setDestination({ label: `Точка ${Number(location.lat).toFixed(5)}, ${Number(location.lng).toFixed(5)}`, ...location });
+      }
+    } finally {
+      if (requestId === reverseRequestRef.current) setAddressStatus("idle");
+    }
   };
 
   const finishRide = () => {
@@ -188,7 +244,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
       <Header logo right={<button className="iconBtn profileBtn" onClick={() => go("profile")}>K</button>} />
         <main className="content customerContent homeContent">
         <div className="homeIntro"><h1>Добър вечер, Кристиян</h1></div>
-        <CustomerMap pickup={pickup} destination={destination} route={route} status={locationStatus} recenterSignal={recenterSignal} onRecenter={() => setRecenterSignal(value => value + 1)} onDestinationSelect={location => setDestination({ label: "Избрана точка", ...location })}/>
+        <CustomerMap pickup={pickup} destination={destination} route={route} status={locationStatus} addressStatus={addressStatus} recenterSignal={recenterSignal} onRecenter={() => setRecenterSignal(value => value + 1)} onDestinationSelect={selectMapDestination}/>
         <button className="destinationCard" onClick={() => go("destination")}>
           <span className="destinationIcon"><Navigation2 size={18} strokeWidth={1.8} aria-hidden="true"/></span><span><small>Къде отиваш?</small><b>{locationLabel(destination)}</b><small>Натисни, за да промениш маршрута</small></span><ChevronRight className="cardChevron" size={20} strokeWidth={1.8}/>
         </button>
@@ -203,8 +259,12 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
       <Header title="Маршрут" onBack={back}/>
         <main className="content customerContent">
         <div><span className="eyebrow">СТЪПКА 1 ОТ 3</span><h1>Къде отиваме?</h1><p className="muted">Избери точна дестинация за по-добра цена.</p></div>
-        <CustomerMap pickup={pickup} destination={destination} route={route} status={locationStatus} recenterSignal={recenterSignal} onRecenter={() => setRecenterSignal(value => value + 1)} onDestinationSelect={location => setDestination({ label: "Избрана точка", ...location })}/>
-        <Card className="routeEditor"><div className="summaryLine"><LocateFixed className="routeIcon" size={17} strokeWidth={1.8}/><span><small>ВЗИМАНЕ</small><b>{pickup.label}</b></span></div><div className="summaryLine destinationInput"><MapPin className="routeIcon mutedIcon" size={17} strokeWidth={1.8}/><span className="grow"><small>ДЕСТИНАЦИЯ</small><input value={destination.label} onChange={e => setDestination({ label: e.target.value, lat: null, lng: null })} /></span></div></Card>
+        <CustomerMap pickup={pickup} destination={destination} route={route} status={locationStatus} addressStatus={addressStatus} recenterSignal={recenterSignal} onRecenter={() => setRecenterSignal(value => value + 1)} onDestinationSelect={selectMapDestination}/>
+        <Card className="routeEditor"><div className="summaryLine"><LocateFixed className="routeIcon" size={17} strokeWidth={1.8}/><span><small>ВЗИМАНЕ</small><b>{pickup.label}</b></span></div><form className="summaryLine destinationInput" onSubmit={submitAddressSearch}><MapPin className="routeIcon mutedIcon" size={17} strokeWidth={1.8}/><span className="grow"><small>ДЕСТИНАЦИЯ</small><input value={destination.label} onChange={e => { setDestination({ label: e.target.value, lat: null, lng: null }); setSearchStatus("idle"); setSearchResults([]); }} /></span><button className="searchButton" type="submit" aria-label="Търси адрес" disabled={searchStatus === "loading"}><Search size={17} strokeWidth={1.8}/></button></form></Card>
+        {searchStatus === "loading" && <div className="searchMessage">Търсим адреса…</div>}
+        {searchStatus === "empty" && <div className="searchMessage">Няма намерени места в България.</div>}
+        {searchStatus === "error" && <div className="searchMessage error">Търсенето не е налично. Опитай отново.</div>}
+        {searchResults.length > 0 && <div className="addressResults" aria-label="Резултати от търсене">{searchResults.map(result => <button className="addressResult" key={`${result.lat}-${result.lng}`} onClick={() => selectSearchResult(result)}><span className="addressResultIcon"><MapPin size={16} strokeWidth={1.8}/></span><span><b>{result.label}</b><small>{result.detail}</small></span><ChevronRight className="cardChevron" size={18} strokeWidth={1.8}/></button>)}</div>}
         <div className="eyebrow">ЗАПАЗЕНИ МЕСТА</div>
         <div className="savedPlaceList">{savedPlaces.map(({ name, location, icon }) => <button key={name} className="place" onClick={() => setDestination(location)}><span className="placeIcon"><PlaceIcon icon={icon}/></span><span><b>{name}</b><small>{location.label}</small></span><ChevronRight className="cardChevron" size={19} strokeWidth={1.8}/></button>)}</div>
         <div className="eyebrow">ПОСЛЕДНИ</div>
@@ -219,7 +279,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
       <Header title="Твоят RIVO" onBack={back}/>
         <main className="content customerContent">
         <div><span className="eyebrow">СТЪПКА 2 ОТ 3</span><h1>Избери автомобил</h1><p className="muted">Фиксирана цена. Без изненади.</p></div>
-        <RouteSummary destination={destination} route={route} timing={timing} passengers={passengers} luggage={luggage} payment={payment}/>
+        <RouteSummary pickup={pickup} destination={destination} route={route} timing={timing} passengers={passengers} luggage={luggage} payment={payment}/>
         <div className="rideChoices">{Object.values(vehicles).map(v => (
           <button key={v.id} className={`rideCard ${ride === v.id ? "selected" : ""}`} onClick={() => setRide(v.id)}>
             <div>
@@ -241,7 +301,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
       <Header title="Потвърди курса" onBack={back}/>
         <main className="content customerContent confirmContent">
         <div><span className="eyebrow">СТЪПКА 3 ОТ 3</span><h1>Всичко изглежда добре?</h1><p className="muted">Провери детайлите преди да поръчаш.</p></div>
-        <RouteSummary destination={destination} route={route} timing={timing} passengers={passengers} luggage={luggage} payment={payment}/>
+        <RouteSummary pickup={pickup} destination={destination} route={route} timing={timing} passengers={passengers} luggage={luggage} payment={payment}/>
         <Card className="confirmVehicle"><div><span className="eyebrow">ТВОЯТ АВТОМОБИЛ</span><h2>{selected.label}</h2><small>{selected.model} · до 4 места</small></div><VehicleImage src={selected.image} alt={selected.model} compact/></Card>
         <Card className="priceSummary"><span><small>ФИКСИРАНА ЦЕНА</small><b>Общо за курса</b></span><strong>{price} €</strong></Card>
         <div className="spacer"/><Button onClick={() => setScreen("matching")}>ПОРЪЧАЙ {selected.label}</Button><button className="quietAction" onClick={back}>Промени детайлите</button>
