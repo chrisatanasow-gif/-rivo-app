@@ -1,13 +1,12 @@
 export async function getRouteGeometry(start, end) {
-  if (!start || !end) return null;
+  if (!isValidLocation(start) || !isValidLocation(end)) return null;
 
-  const url = new URL("https://router.project-osrm.org/route/v1/driving");
+  const url = new URL(`https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}`);
   url.searchParams.set("geometries", "geojson");
   url.searchParams.set("overview", "full");
   url.searchParams.set("steps", "false");
   url.searchParams.set("alternatives", "false");
   url.searchParams.set("annotations", "distance,duration");
-  url.searchParams.set("coordinates", `${start.lng},${start.lat};${end.lng},${end.lat}`);
 
   try {
     const response = await fetch(url.toString());
@@ -42,6 +41,10 @@ export async function getRouteGeometry(start, end) {
       isFallback: true
     };
   }
+}
+
+function isValidLocation(location) {
+  return Number.isFinite(Number(location?.lat)) && Number.isFinite(Number(location?.lng));
 }
 
 function haversineDistanceKm(start, end) {
