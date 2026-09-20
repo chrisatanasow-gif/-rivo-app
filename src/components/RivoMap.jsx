@@ -18,11 +18,12 @@ const OSM_RASTER_STYLE = {
   layers: [{ id: "osm", type: "raster", source: "osm" }]
 };
 
-export default function RivoMap({ pickup, destination, route, onDestinationSelect, onMapReady, recenterSignal, className = "" }) {
+export default function RivoMap({ pickup, destination, route, driverProgress, frameProgress, onDestinationSelect, onMapReady, recenterSignal, className = "" }) {
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
   const pickupRef = useRef(null);
   const destinationRef = useRef(null);
+  const driverRef = useRef(null);
   const routeRef = useRef(null);
   const onDestinationSelectRef = useRef(onDestinationSelect);
   const onMapReadyRef = useRef(onMapReady);
@@ -110,8 +111,9 @@ export default function RivoMap({ pickup, destination, route, onDestinationSelec
     if (!mapRef.current || !mapReady) return;
 
     const map = mapRef.current;
-    const center = pickup || DEFAULT_CENTER;
-    map.flyTo({ center: [center.lng, center.lat], zoom: 13, speed: 1.4, curve: 1.2 });
+    if (recenterSignal && isValidLocation(pickup)) {
+      map.flyTo({ center: [pickup.lng, pickup.lat], zoom: 14, speed: 1.4, curve: 1.2 });
+    }
   }, [pickup, mapReady, recenterSignal]);
 
   useEffect(() => {
@@ -165,7 +167,40 @@ export default function RivoMap({ pickup, destination, route, onDestinationSelec
     } else if (map.getSource("rivo-route")) {
       map.getSource("rivo-route").setData({ type: "FeatureCollection", features: [] });
     }
+
   }, [pickup, destination, route, mapReady]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    updateDriverMarker(map, driverRef, route?.geometry?.coordinates, driverProgress);
+  }, [route, mapReady, driverProgress]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const coordinates = route?.geometry?.coordinates;
+    if (!map || !mapReady || !Array.isArray(coordinates) || coordinates.length < 2) return;
+
+    const progress = Number.isFinite(driverProgress) ? clamp(driverProgress, 0, 1) : null;
+    const startIndex = progress !== null && frameProgress === "remaining"
+      ? Math.min(coordinates.length - 2, Math.floor(progress * (coordinates.length - 1)))
+      : 0;
+    const visibleCoordinates = coordinates.slice(startIndex);
+    const bounds = new maplibregl.LngLatBounds();
+    visibleCoordinates.forEach(coordinate => bounds.extend(coordinate));
+    if (progress !== null) bounds.extend(coordinates[Math.round(progress * (coordinates.length - 1))]);
+
+    map.fitBounds(bounds, {
+      padding: { top: 42, right: 34, bottom: 74, left: 34 },
+      maxZoom: 14,
+      duration: 650,
+      essential: true
+    });
+  }, [route, mapReady, frameProgress, driverProgress]);
+
+  useEffect(() => () => {
+    if (driverRef.current) driverRef.current.remove();
+  }, []);
 
   if (mapError) {
     return <MapMock />;
@@ -174,6 +209,41 @@ export default function RivoMap({ pickup, destination, route, onDestinationSelec
   return <div ref={mapContainerRef} className={`map liveMap ${className}`} aria-label="Карта на маршрута">
     {mapLoading && <div className="mapLoadingState" role="status">Зареждаме картата…</div>}
   </div>;
+}
+
+function updateDriverMarker(map, markerRef, coordinates, progress) {
+  if (!Array.isArray(coordinates) || coordinates.length < 2 || !Number.isFinite(progress)) {
+    if (markerRef.current) {
+      markerRef.current.remove();
+      markerRef.current = null;
+    }
+    return;
+  }
+
+  const position = getRoutePosition(coordinates, clamp(progress, 0, 1));
+  if (!markerRef.current) {
+    const element = document.createElement("div");
+    element.className = "rivoDriverMarker";
+    element.setAttribute("aria-label", "RIVO шофьор");
+    element.textContent = "R";
+    markerRef.current = new maplibregl.Marker({ element, anchor: "center" }).setLngLat(position).addTo(map);
+  } else {
+    markerRef.current.setLngLat(position);
+  }
+}
+
+function getRoutePosition(coordinates, progress) {
+  const scaledIndex = progress * (coordinates.length - 1);
+  const index = Math.min(coordinates.length - 2, Math.floor(scaledIndex));
+  const fraction = scaledIndex - index;
+  return [
+    coordinates[index][0] + (coordinates[index + 1][0] - coordinates[index][0]) * fraction,
+    coordinates[index][1] + (coordinates[index + 1][1] - coordinates[index][1]) * fraction
+  ];
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function isValidLocation(location) {

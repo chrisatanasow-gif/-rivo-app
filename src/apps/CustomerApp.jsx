@@ -79,6 +79,8 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
   const [historyItems, setHistoryItems] = useState(historySeed);
   const selected = vehicles[ride];
   const price = pricing[ride];
+  const arrivingDriverProgress = selected.eta ? eta / selected.eta : 0;
+  const tripDriverProgress = tripProgress / 100;
 
   useEffect(() => {
     let active = true;
@@ -237,7 +239,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
         <main className="content customerContent centered matchingContent">
         <div className="matchingVisual"><LoaderCircle size={30} strokeWidth={1.7}/></div>
         <div><span className="eyebrow">КУРСЪТ Е ПОТВЪРДЕН</span><h1>Търсим най-близкия RIVO…</h1><p className="muted">Свързваме те с подходящия автомобил.</p></div>
-        <RivoMap pickup={pickup} destination={destination} route={route}/>
+        <RivoMap pickup={pickup} destination={destination} route={route} driverProgress={arrivingDriverProgress}/>
         <div className="spacer"/>
       </main>
     </>
@@ -263,7 +265,7 @@ export default function CustomerApp({ pricing, openDriver, openAdmin, toast }) {
       <Header logo right={<Pill live>В ПЪТУВАНЕ</Pill>}/>
         <main className="content customerContent">
         <div className="statusHeader"><div><span className="eyebrow">{selected.label} · В ПЪТ</span><h1>{Math.max(1, 16 - Math.floor(tripProgress / 7))} мин до {locationLabel(destination).split(",")[0]}</h1><p className="muted">Пристигаме спокойно и навреме.</p></div><span className="liveDot"/></div>
-        <RivoMap pickup={pickup} destination={destination} route={route}/><div className="progress"><i style={{width:`${tripProgress}%`}}/></div>
+        <RivoMap pickup={pickup} destination={destination} route={route} driverProgress={tripDriverProgress} frameProgress="remaining"/><div className="progress"><i style={{width:`${tripProgress}%`}}/></div>
         <Card className="activeTripCard"><div className="driverAvatar">И</div><span className="grow"><b>Иван Петров</b><small>{selected.model} · CB 5237 MK</small></span><strong className="price">{price} €</strong></Card>
         <Card className="routeSummary compactSummary"><div className="summaryLine"><span className="dot"/><span><small>ПРИСТИГАНЕ</small><b>{locationLabel(destination)}</b></span></div><div className="summaryMeta"><span>{route ? `${route.distanceKm.toFixed(1)} км · ${route.durationMinutes} мин` : "Маршрутът се изчислява"}</span><span>{passengers} {passengers === 1 ? "пътник" : "пътници"}</span><span>{luggage ? "С багаж" : "Без багаж"}</span><span>{payment === "cash" ? "Кеш" : "Visa"}</span></div></Card>
         <div className="spacer"/><Button onClick={completeTrip}>ДЕМО: ЗАВЪРШИ ПЪТУВАНЕТО</Button>
