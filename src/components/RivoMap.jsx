@@ -4,7 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { MapMock } from "./UI";
 
 const DEFAULT_CENTER = { lat: 42.6019, lng: 23.0334 };
-const DARK_MAP_STYLE = "https://tiles.openfreemap.org/styles/dark";
+const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
 
 export default function RivoMap({ pickup, destination, route, onDestinationSelect, onMapReady, recenterSignal, className = "" }) {
   const mapRef = useRef(null);
@@ -15,6 +15,7 @@ export default function RivoMap({ pickup, destination, route, onDestinationSelec
   const onDestinationSelectRef = useRef(onDestinationSelect);
   const onMapReadyRef = useRef(onMapReady);
   const [mapReady, setMapReady] = useState(false);
+  const [mapLoading, setMapLoading] = useState(true);
   const [mapError, setMapError] = useState(false);
 
   useEffect(() => {
@@ -28,7 +29,7 @@ export default function RivoMap({ pickup, destination, route, onDestinationSelec
     try {
       const map = new maplibregl.Map({
         container: mapContainerRef.current,
-        style: DARK_MAP_STYLE,
+        style: MAP_STYLE_URL,
         center: [DEFAULT_CENTER.lng, DEFAULT_CENTER.lat],
         zoom: 12,
         attributionControl: false,
@@ -46,6 +47,7 @@ export default function RivoMap({ pickup, destination, route, onDestinationSelec
 
       map.on("load", () => {
         setMapReady(true);
+        setMapLoading(false);
         setMapError(false);
         onMapReadyRef.current?.(map);
       });
@@ -135,7 +137,9 @@ export default function RivoMap({ pickup, destination, route, onDestinationSelec
     return <MapMock />;
   }
 
-  return <div ref={mapContainerRef} className={`map liveMap ${className}`} aria-label="Карта на маршрута" />;
+  return <div ref={mapContainerRef} className={`map liveMap ${className}`} aria-label="Карта на маршрута">
+    {mapLoading && <div className="mapLoadingState" role="status">Зареждаме картата…</div>}
+  </div>;
 }
 
 function isValidLocation(location) {
