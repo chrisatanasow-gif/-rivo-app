@@ -4,8 +4,13 @@ import DriverApp from "./apps/DriverApp";
 import AdminApp from "./apps/AdminApp";
 import { Toast } from "./components/UI";
 import { load, save } from "./lib/storage";
+import PilotApp from "./apps/PilotApp";
 
 export default function App() {
+  return window.location.pathname.replace(/\/$/, "") === "/pilot" ? <PilotApp/> : <PrototypeApp/>;
+}
+
+function PrototypeApp() {
   const [mode, setMode] = useState("customer");
   const [pricing, setPricingState] = useState(() => load("rivoPricing", { city: 26, premium: 34 }));
   const [message, setMessage] = useState("");

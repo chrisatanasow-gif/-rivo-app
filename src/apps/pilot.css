@@ -1,0 +1,37 @@
+.pilotContent{gap:16px;padding-top:16px;padding-bottom:calc(env(safe-area-inset-bottom) + 24px)}
+.pilotContent h1{font-size:31px;line-height:1.12;margin-top:8px}
+.pilotContent h2{font-size:22px;line-height:1.15}
+.pilotContent .muted,.pilotNote{font-size:13px;line-height:1.55}
+.pilotForm{display:flex;flex-direction:column;gap:16px}
+.pilotForm .segmented button{display:flex;gap:8px;align-items:center;justify-content:center;min-height:44px}
+.pilotField{display:flex;flex-direction:column;gap:8px;font-size:12px;font-weight:750;color:#cbd0d8}
+.pilotField input,.pilotField select,.pilotSearch input{width:100%;min-height:49px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--panel);color:#fff;font-size:16px;line-height:1.4}
+.pilotField select{appearance:auto}
+.pilotContent :is(button,input,select,a):focus-visible{outline:2px solid var(--yellow);outline-offset:3px}
+.pilotContent button:disabled{opacity:.45;cursor:default}
+.pilotNote{margin:0;color:var(--muted)}
+.pilotPlace{display:flex;flex-direction:column;gap:8px}
+.pilotSearch{display:flex;gap:8px}
+.pilotSearch input{min-width:0;font-size:14px}
+.pilotSearch button{display:grid;place-items:center;flex:0 0 48px;border-radius:14px;color:var(--yellow);background:var(--panel2);border:1px solid var(--line)}
+.pilotRide{padding:16px}
+.pilotRide p{margin:8px 0;font-size:14px}
+.pilotRide .summaryLine{padding:13px 0}
+.pilotRide .summaryLine svg{flex-shrink:0;color:var(--yellow)}
+.pilotRide .summaryLine b{white-space:normal;overflow-wrap:anywhere;font-size:14px}
+.pilotRideHeading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:7px}
+.pilotStatus h1{margin:8px 0}
+.pilotStatus p{margin:8px 0 0}
+.pilotSession{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.pilotSession .iconBtn{display:grid;place-items:center}
+.pilotSync{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;color:#a9e5c3}
+.pilotSync.offline{color:#ffd99e}
+.pilotSync button{display:grid;place-items:center;background:var(--panel2);color:inherit;min-width:36px;min-height:36px;border-radius:12px}
+.pilotError{padding:14px;border:1px solid #6e3d3d;border-radius:16px;background:#271718;color:#ffcfcb;font-size:13px;line-height:1.5}
+.pilotError button{display:block;margin-top:8px;padding:8px 0;background:transparent;color:#fff;text-decoration:underline}
+.pilotEmpty{padding:26px 18px;text-align:center}
+.pilotEmpty>svg{color:var(--yellow);margin-bottom:12px}
+.pilotRequest,.pilotHistory{display:flex;flex-direction:column;gap:10px}
+.pilotRequest>p{margin:0}
+.pilotHistory{margin-top:10px}
+.pilotBack{color:var(--muted);font-size:12px;text-align:center;text-decoration:underline;margin-top:8px;padding:10px}

@@ -6,6 +6,11 @@ A modular mobile-first RIVO prototype with three connected experiences:
 - Driver app
 - RIVO Control admin dashboard
 
+The `/pilot` route adds a separate closed two-phone test with server-side sessions,
+Postgres ride storage and real acceptance/status updates. Setup, scope and the
+two-phone checklist are documented in [docs/two-phone-pilot.md](docs/two-phone-pilot.md).
+It requires a dedicated preview database and a server-only pilot invitation code.
+
 ## Run locally
 
 ```bash
@@ -29,4 +34,8 @@ Import this repository in Vercel. Framework preset: **Vite**. No environment var
 
 ## Important
 
-This package is a polished interactive prototype. The map, driver dispatch, payments, authentication, GPS, push notifications and real ride persistence are simulated locally. The project is structured so those services can be replaced with real APIs later without rebuilding the UI from scratch.
+The main `/` experience is an interactive prototype. It includes browser location,
+address-search and routing integrations, while dispatch, payments, authentication,
+notifications and ride history in that experience remain demonstrations. The
+separate `/pilot` flow persists requests and synchronizes participants through
+Postgres; it uses test prices and does not process payments or approve real drivers.
