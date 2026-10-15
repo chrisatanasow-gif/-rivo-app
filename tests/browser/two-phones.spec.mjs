@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-const CODE = "rivo-local-test-invitation";
+const CODE = process.env.RIVO_PILOT_CODE || "rivo-local-test-invitation";
 
 async function login(page, role, name) {
   await page.goto(`/pilot?role=${role}`);
