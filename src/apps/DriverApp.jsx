@@ -81,7 +81,7 @@ export default function DriverApp({ close, tariff, toast }) {
   if (screen === "waiting") return (
     <>
       <Header title="ВЗЕМАНЕ" right={<Pill live>ПРИСТИГНАЛ</Pill>}/>
-      <main className="content centered">
+      <main className="content centered driverWaiting">
         <span className="eyebrow">ИЗЧАКВАНЕ</span><div className="waitTime">{waitLabel}</div><p className="muted">Клиентът е уведомен, че си пристигнал.</p>
         <Card className="customerRow full"><div className="avatar">K</div><span><b>Кристиян</b><small>Перник, Изток · RIVO</small></span></Card>
         <VehicleImage src={bmw.image} alt={bmw.model}/>
