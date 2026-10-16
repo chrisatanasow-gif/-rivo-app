@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { calculateFare, DEFAULT_TARIFFS } from "../shared/fare.js";
+import { calculateFare, DEFAULT_TARIFF } from "../shared/fare.js";
 
 export class QuoteError extends Error {
   constructor(message, code = "QUOTE_REQUIRED") { super(message); this.code = code; this.status = 409; }
@@ -10,11 +10,11 @@ const details = (pickup, destination, vehicleType) => JSON.stringify([
   pickup.label, pickup.lat, pickup.lng, destination.label, destination.lat, destination.lng, vehicleType
 ]);
 
-export function createFareQuotes({ query, resolveRoute, now = () => Date.now(), tariffs = DEFAULT_TARIFFS }) {
+export function createFareQuotes({ query, resolveRoute, now = () => Date.now(), tariff = DEFAULT_TARIFF }) {
   return {
     async issue({ sessionId, pickup, destination, vehicleType }) {
       const route = await resolveRoute(pickup, destination);
-      const fare = { ...calculateFare(route.distanceMeters, vehicleType, tariffs), durationSeconds: route.durationSeconds, routeSource: route.routeSource || "osrm" };
+      const fare = { ...calculateFare(route.distanceMeters, tariff), service: "rivo", durationSeconds: route.durationSeconds, routeSource: route.routeSource || "osrm" };
       const expiresAt = new Date(now() + 5 * 60 * 1000).toISOString();
       const token = randomUUID();
       await query(`INSERT INTO rivo_pilot_quotes (id, customer_id, pickup, destination, vehicle_type, fare, expires_at)

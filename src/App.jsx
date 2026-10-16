@@ -5,12 +5,12 @@ import AdminApp from "./apps/AdminApp";
 import { Toast } from "./components/UI";
 import { load, save } from "./lib/storage";
 import PilotApp from "./apps/PilotApp";
-import { DEFAULT_TARIFFS, calculateFare } from "../shared/fare.js";
+import { DEFAULT_TARIFF, calculateFare } from "../shared/fare.js";
 
-function loadTariffs() {
-  const stored = load("rivoTariffsV1", DEFAULT_TARIFFS);
-  try { calculateFare(1000, "city", stored); calculateFare(1000, "premium", stored); return stored; }
-  catch { return DEFAULT_TARIFFS; }
+function loadTariff() {
+  const stored = load("rivoTariffV2", null) || load("rivoTariffsV1", null)?.city || DEFAULT_TARIFF;
+  try { calculateFare(1000, stored); return stored; }
+  catch { return DEFAULT_TARIFF; }
 }
 
 export default function App() {
@@ -19,12 +19,12 @@ export default function App() {
 
 function PrototypeApp() {
   const [mode, setMode] = useState("customer");
-  const [tariffs, setTariffsState] = useState(loadTariffs);
+  const [tariff, setTariffState] = useState(loadTariff);
   const [message, setMessage] = useState("");
 
-  const setTariffs = (next) => {
-    setTariffsState(next);
-    save("rivoTariffsV1", next);
+  const setTariff = (next) => {
+    setTariffState(next);
+    save("rivoTariffV2", next);
   };
 
   const toast = (text) => {
@@ -36,9 +36,9 @@ function PrototypeApp() {
   return (
     <div className="shell">
       <div className="app">
-        {mode === "customer" && <CustomerApp tariffs={tariffs} openDriver={() => setMode("driver")} openAdmin={() => setMode("admin")} toast={toast}/>}
-        {mode === "driver" && <DriverApp close={() => setMode("customer")} tariffs={tariffs} toast={toast}/>}
-        {mode === "admin" && <AdminApp close={() => setMode("customer")} tariffs={tariffs} setTariffs={setTariffs} toast={toast}/>}
+        {mode === "customer" && <CustomerApp tariff={tariff} openDriver={() => setMode("driver")} openAdmin={() => setMode("admin")} toast={toast}/>}
+        {mode === "driver" && <DriverApp close={() => setMode("customer")} tariff={tariff} toast={toast}/>}
+        {mode === "admin" && <AdminApp close={() => setMode("customer")} tariff={tariff} setTariff={setTariff} toast={toast}/>}
         <Toast message={message}/>
       </div>
     </div>

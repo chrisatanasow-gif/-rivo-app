@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { pilotRequest } from "./pilotService.js";
 
-export function useFareQuote(pickup, destination, vehicleType, enabled = true) {
-  const key = JSON.stringify({ pickup, destination, vehicleType });
+export function useFareQuote(pickup, destination, enabled = true) {
+  const key = JSON.stringify({ pickup, destination });
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState(null);
   useEffect(() => {

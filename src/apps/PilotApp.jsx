@@ -23,7 +23,6 @@ const STATUS = {
   expired: ["Няма приел шофьор", "Заявката изтече. Можеш да опиташ отново."]
 };
 const TERMINAL = ["completed", "cancelled", "expired"];
-const category = type => type === "premium" ? "RIVO Premium" : "RIVO City";
 
 function PilotLogin({ onLogin, busy }) {
   const [role, setRole] = useState(new URLSearchParams(window.location.search).get("role") === "driver" ? "driver" : "customer");
@@ -31,7 +30,7 @@ function PilotLogin({ onLogin, busy }) {
   return <form className="pilotForm" onSubmit={event => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    onLogin({ role, code, name: data.get("name"), vehicleType: data.get("vehicleType"), vehicleModel: data.get("vehicleModel"), vehiclePlate: data.get("vehiclePlate") });
+    onLogin({ role, code, name: data.get("name"), vehicleModel: data.get("vehicleModel"), vehiclePlate: data.get("vehiclePlate") });
   }}>
     <div><span className="eyebrow">ПЪРВАТА РЕАЛНА ВРЪЗКА</span><h1>Една заявка.<br/>Два телефона.</h1><p className="muted">Влез като пътник на единия телефон и като шофьор на другия.</p></div>
     <div className="segmented" aria-label="Избери роля">
@@ -40,7 +39,6 @@ function PilotLogin({ onLogin, busy }) {
     </div>
     <label className="pilotField">Твоето име<input name="name" required minLength={2} maxLength={80} autoComplete="name" placeholder="Как да те показваме?"/></label>
     {role === "driver" && <>
-      <label className="pilotField">Категория<select name="vehicleType"><option value="city">RIVO City</option><option value="premium">RIVO Premium</option></select></label>
       <label className="pilotField">Автомобил<input name="vehicleModel" required minLength={2} maxLength={80} placeholder="Марка и модел" autoComplete="off"/></label>
       <label className="pilotField">Регистрационен номер<input name="vehiclePlate" required minLength={2} maxLength={20} placeholder="Номер на автомобила" autoComplete="off"/></label>
     </>}
@@ -91,7 +89,7 @@ function PlaceField({ label, value, onChange, disabled }) {
 
 function RideDetails({ ride }) {
   return <Card className="pilotRide">
-    <div className="pilotRideHeading"><span><b>{category(ride.vehicleType)}</b><small>{ride.fare ? "Предварителна оценка" : "Предишен тестов курс"}</small></span><strong className="price">{formatMoney(ride.priceCents)}</strong></div>
+    <div className="pilotRideHeading"><span><b>RIVO</b><small>{ride.fare ? "Предварителна оценка" : "Предишен тестов курс"}</small></span><strong className="price">{formatMoney(ride.priceCents)}</strong></div>
     <div className="summaryLine"><CircleDot size={17}/><span><small>ВЗИМАНЕ</small><b>{ride.pickup.label}</b></span></div>
     <div className="summaryLine"><MapPin size={17}/><span><small>ДЕСТИНАЦИЯ</small><b>{ride.destination.label}</b></span></div>
     <FareBreakdown fare={ride.fare}/>
@@ -102,7 +100,6 @@ function RideDetails({ ride }) {
 function CustomerPilot({ state, busy, onCreate, onTransition }) {
   const [pickup, setPickup] = useState(PRESETS[0]);
   const [destination, setDestination] = useState(PRESETS[1]);
-  const [type, setType] = useState("city");
   const [passengers, setPassengers] = useState(1);
   const [dismissed, setDismissed] = useState(() => {
     try { return window.localStorage.getItem("rivoPilotDismissedRide"); } catch { return null; }
@@ -110,7 +107,7 @@ function CustomerPilot({ state, busy, onCreate, onTransition }) {
   const requestKey = useRef(null);
   const latest = state.rides[0];
   const ride = state.activeRide || (latest?.id !== dismissed ? latest : null);
-  const quote = useFareQuote(pickup, destination, type, !ride);
+  const quote = useFareQuote(pickup, destination, !ride);
   if (ride) return <>
     <div className="pilotStatus" aria-live="polite"><span className="eyebrow">{TERMINAL.includes(ride.status) ? "РЕЗУЛТАТ" : "ТВОЯТА ЗАЯВКА"}</span><h1>{STATUS[ride.status][0]}</h1><p className="muted">{STATUS[ride.status][1]}</p></div>
     <RideDetails ride={ride}/>
@@ -126,18 +123,17 @@ function CustomerPilot({ state, busy, onCreate, onTransition }) {
     <div><span className="eyebrow">ЗДРАВЕЙ, {state.participant.name.toLocaleUpperCase("bg-BG")}</span><h1>Къде отиваме?</h1><p className="muted">Шофьорът на другия телефон ще получи тази заявка.</p></div>
     <PlaceField label="Взимане" value={pickup} onChange={setPickup} disabled={busy}/>
     <PlaceField label="Дестинация" value={destination} onChange={setDestination} disabled={busy}/>
-    <label className="pilotField">Автомобил<select value={type} disabled={busy} onChange={event => setType(event.target.value)}><option value="city">RIVO City</option><option value="premium">RIVO Premium</option></select></label>
     <label className="pilotField">Пътници<select value={passengers} disabled={busy} onChange={event => setPassengers(Number(event.target.value))}>{[1, 2, 3, 4].map(count => <option key={count} value={count}>{count}</option>)}</select></label>
     <section aria-live="polite" aria-label="Предварителна цена">
       {quote.loading && <p className="pilotNote" role="status">Изчисляваме маршрута и цената…</p>}
       {quote.error && <div className="pilotError" role="alert">{quote.error}<button type="button" disabled={busy} onClick={quote.retry}>Изчисли отново</button></div>}
-      {quote.quote && <><Card className="priceSummary"><span><small>ПРЕДВАРИТЕЛНА ОЦЕНКА</small><b>{category(type)}</b></span><strong data-testid="fare-total">{formatMoney(quote.quote.priceCents)}</strong></Card><FareBreakdown fare={quote.quote}/></>}
+      {quote.quote && <><Card className="priceSummary"><span><small>ПРЕДВАРИТЕЛНА ОЦЕНКА</small><b>RIVO</b></span><strong data-testid="fare-total">{formatMoney(quote.quote.priceCents)}</strong></Card><FareBreakdown fare={quote.quote}/></>}
     </section>
     <Button disabled={busy || !quote.quote} onClick={() => {
       if (requestKey.current?.key !== quote.key) requestKey.current = { key: quote.key, id: window.crypto.randomUUID() };
-      onCreate({ pickup, destination, vehicleType: type, passengers, idempotencyKey: requestKey.current.id, quoteToken: quote.quote.token });
+      onCreate({ pickup, destination, passengers, idempotencyKey: requestKey.current.id, quoteToken: quote.quote.token });
     }}>{busy ? "ИЗПРАЩАНЕ…" : "ИЗПРАТИ ЗАЯВКА"}</Button>
-    <p className="pilotNote">Цената се запазва към заявката. При промяна на маршрута или категорията се изчислява нова оценка.</p>
+    <p className="pilotNote">Цената се запазва към заявката. При промяна на маршрута се изчислява нова оценка.</p>
   </>;
 }
 
@@ -151,8 +147,8 @@ function DriverPilot({ state, busy, onTransition }) {
     {ride.status !== "in_progress" && <Button secondary disabled={busy} onClick={() => onTransition(ride.id, "cancel")}>ОТКАЖИ КУРСА</Button>}
   </>;
   return <>
-    <div><span className="eyebrow">{category(state.participant.vehicleType).toUpperCase()}</span><h1>Готов за заявка</h1><p className="muted">{state.participant.vehicleModel} · {state.participant.vehiclePlate}</p></div>
-    {state.requests.length === 0 && <Card className="pilotEmpty"><CarFront size={32}/><h2>Изчакваме пътник</h2><p className="muted">Заявките за твоята категория ще се появят тук автоматично.</p></Card>}
+    <div><span className="eyebrow">RIVO</span><h1>Готов за заявка</h1><p className="muted">{state.participant.vehicleModel} · {state.participant.vehiclePlate}</p></div>
+    {state.requests.length === 0 && <Card className="pilotEmpty"><CarFront size={32}/><h2>Изчакваме пътник</h2><p className="muted">Новите заявки на RIVO ще се появят тук автоматично.</p></Card>}
     {state.requests.map(request => <section className="pilotRequest" key={request.id}><RideDetails ride={request}/><p className="muted">Пътник: {request.customerName}</p><Button disabled={busy} onClick={() => onTransition(request.id, "accept")}>ПРИЕМИ ЗАЯВКАТА</Button></section>)}
     {state.rides.some(item => TERMINAL.includes(item.status)) && <section className="pilotHistory"><span className="eyebrow">ПОСЛЕДНИ ТЕСТОВИ КУРСОВЕ</span>{state.rides.filter(item => TERMINAL.includes(item.status)).slice(0, 3).map(item => <Card key={item.id} className="pilotRide"><b>{STATUS[item.status][0]}</b><small>{item.pickup.label} → {item.destination.label}</small></Card>)}</section>}
   </>;

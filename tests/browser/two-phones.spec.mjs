@@ -5,6 +5,7 @@ const CODE = process.env.RIVO_PILOT_CODE || "rivo-local-test-invitation";
 async function login(page, role, name) {
   await page.goto(`/pilot?role=${role}`);
   await page.getByLabel("Твоето име").fill(name);
+  await expect(page.getByRole("combobox", { name: "Категория" })).toHaveCount(0);
   if (role === "driver") {
     await page.getByLabel("Автомобил", { exact: true }).fill("Skoda Octavia");
     await page.getByLabel("Регистрационен номер").fill("PK 1234 AA");
@@ -71,7 +72,7 @@ test("cancellation reaches the driver and a temporary API failure has a visible 
   await driverContext.close();
 });
 
-test("route and category change the quote and preserve the same fare for both participants", async ({ browser }) => {
+test("one RIVO service prices the route and preserves the same fare for both participants", async ({ browser }) => {
   const customerContext = await browser.newContext();
   const driverContext = await browser.newContext();
   const customer = await customerContext.newPage();
@@ -79,6 +80,7 @@ test("route and category change the quote and preserve the same fare for both pa
   const name = `Цени Тест ${Date.now()}`;
   await login(customer, "customer", name);
   await login(driver, "driver", "Шофьор Цени");
+  await expect(customer.getByRole("combobox", { name: "Автомобил", exact: true })).toHaveCount(0);
   await expect(customer.getByTestId("fare-total")).toBeVisible();
   const shortPrice = await customer.getByTestId("fare-total").innerText();
   const nextQuote = () => customer.waitForResponse(response => response.url().includes("action=quote") && response.request().method() === "POST");
@@ -87,20 +89,16 @@ test("route and category change the quote and preserve the same fare for both pa
   await expect(customer.getByRole("button", { name: "ИЗПРАТИ ЗАЯВКА" })).toBeDisabled();
   const longQuote = (await (await longResponse).json()).quote;
   await expect(customer.getByTestId("fare-total")).not.toHaveText(shortPrice);
-  const premiumResponse = nextQuote();
-  await customer.getByRole("combobox", { name: "Автомобил", exact: true }).selectOption("premium");
-  const premiumQuote = (await (await premiumResponse).json()).quote;
-  expect(premiumQuote.priceCents).toBeGreaterThan(longQuote.priceCents);
-  const cityResponse = nextQuote();
-  await customer.getByRole("combobox", { name: "Автомобил", exact: true }).selectOption("city");
-  const cityQuote = (await (await cityResponse).json()).quote;
+  expect(longQuote.service).toBe("rivo");
+  expect(longQuote.baseFareCents).toBe(100);
+  expect(longQuote.perKmCents).toBe(70);
   await expect(customer.getByRole("button", { name: "ИЗПРАТИ ЗАЯВКА" })).toBeEnabled();
   const priceText = await customer.getByTestId("fare-total").innerText();
   const createdResponse = customer.waitForResponse(response => response.url().includes("action=create"));
   await customer.getByRole("button", { name: "ИЗПРАТИ ЗАЯВКА" }).click();
   const saved = (await (await createdResponse).json()).ride;
-  expect(saved.priceCents).toBe(cityQuote.priceCents);
-  expect(saved.fare.distanceMeters).toBe(cityQuote.distanceMeters);
+  expect(saved.priceCents).toBe(longQuote.priceCents);
+  expect(saved.fare.distanceMeters).toBe(longQuote.distanceMeters);
   await driver.locator(".pilotRequest").filter({ hasText: name }).getByRole("button", { name: "ПРИЕМИ ЗАЯВКАТА" }).click();
   await expect(customer.getByRole("heading", { name: "Шофьорът прие" })).toBeVisible();
   await expect(driver.locator(".pilotRideHeading .price")).toHaveText(priceText);
@@ -136,9 +134,10 @@ test("the main design uses road distance and ignores old fixed-price storage", a
   await page.goto("/");
   await page.getByRole("button", { name: "Работа", exact: true }).click();
   await page.getByRole("button", { name: "ПРОДЪЛЖИ", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Избери автомобил" })).toBeVisible();
-  await expect(page.locator(".rideCard").filter({ hasText: "RIVO CITY" }).locator(".price")).toHaveText(/25,50/);
-  await expect(page.locator(".rideCard").filter({ hasText: "RIVO PREMIUM" }).locator(".price")).toHaveText(/36,50/);
+  await expect(page.getByRole("heading", { name: "Детайли за курса" })).toBeVisible();
+  await expect(page.locator(".rideCard")).toHaveCount(1);
+  await expect(page.locator(".rideCard .price")).toHaveText(/25,50/);
+  await expect(page.getByText(/RIVO (CITY|PREMIUM)/i)).toHaveCount(0);
   await expect(page.getByRole("button", { name: /ПРЕГЛЕДАЙ КУРСА/ })).toBeEnabled();
   await context.close();
 });

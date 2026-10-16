@@ -40,9 +40,8 @@ function PlaceIcon({ icon: Icon }) {
   return <Icon className="placeGlyph" size={18} strokeWidth={1.8} aria-hidden="true"/>;
 }
 
-function RideClassBadge({ vehicle }) {
-  const classLabel = vehicle.id === "city" ? "CITY CLASS" : "PREMIUM CLASS";
-  return <div className="premiumBadge"><span className="premiumMark"><ShieldCheck size={17} strokeWidth={1.8}/></span><span><b>{vehicle.label}</b><small>{vehicle.model}</small></span><em>{classLabel}</em></div>;
+function RideBadge({ vehicle }) {
+  return <div className="premiumBadge"><span className="premiumMark"><ShieldCheck size={17} strokeWidth={1.8}/></span><span><b>{vehicle.label}</b><small>{vehicle.model}</small></span><em>КУРС</em></div>;
 }
 
 function Stepper({ value, onChange }) {
@@ -57,10 +56,9 @@ function BookingDetails({ timing, setTiming, passengers, setPassengers, luggage,
   return <section className="bookingOptions"><div className="eyebrow">ДЕТАЙЛИ ЗА КУРСА</div><div className="segmented"><button className={timing === "now" ? "active" : ""} onClick={() => setTiming("now")}>Сега</button><button className={timing === "later" ? "active" : ""} onClick={() => setTiming("later")}>Насрочи</button></div>{timing === "later" && <button className="optionRow" onClick={() => toast("Избери час за курса")}><span><small>ЧАС НА ВЗИМАНЕ</small><b>Днес · 18:30</b></span><ChevronRight size={19} strokeWidth={1.8}/></button>}<div className="optionRow"><span><small>ПЪТНИЦИ</small><b>Кой ще пътува?</b></span><Stepper value={passengers} onChange={setPassengers}/></div><button className="optionRow" onClick={() => setLuggage(value => !value)}><span><small>БАГАЖ</small><b>{luggage ? "1 голям багаж" : "Без багаж"}</b></span><span className={`toggle ${luggage ? "on" : ""}`}><i/></span></button><button className="optionRow" onClick={() => setPayment(value => value === "cash" ? "card" : "cash")}><span><small>ПЛАЩАНЕ</small><b>{payment === "cash" ? "Кеш" : "Visa •••• 4242"}</b></span><ChevronRight size={19} strokeWidth={1.8}/></button></section>;
 }
 
-export default function CustomerApp({ tariffs, openDriver, openAdmin, toast }) {
+export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   const [screen, setScreen] = useState("home");
   const [history, setHistory] = useState([]);
-  const [ride, setRide] = useState("city");
   const [pickup, setPickup] = useState(DEFAULT_PICKUP_LOCATION);
   const [locationStatus, setLocationStatus] = useState("requesting");
   const [destination, setDestination] = useState({ label: "", lat: null, lng: null });
@@ -75,7 +73,7 @@ export default function CustomerApp({ tariffs, openDriver, openAdmin, toast }) {
   const [addressStatus, setAddressStatus] = useState("idle");
   const reverseRequestRef = useRef(0);
   const [recenterSignal, setRecenterSignal] = useState(0);
-  const [eta, setEta] = useState(vehicles.city.eta);
+  const [eta, setEta] = useState(vehicles.rivo.eta);
   const [tripProgress, setTripProgress] = useState(18);
   const [rating, setRating] = useState(5);
   const [tip, setTip] = useState(0);
@@ -87,19 +85,16 @@ export default function CustomerApp({ tariffs, openDriver, openAdmin, toast }) {
   const [tripId] = useState("#RIVO-1048");
   const [tripDate, setTripDate] = useState("");
   const historySeed = [
-    { route: "Перник → София", service: `${vehicles.premium.label} · ${vehicles.premium.model}`, price: 34, date: "Днес, 09:40" },
-    { route: "Перник · Център", service: `${vehicles.city.label} · ${vehicles.city.model}`, price: 8, date: "Вчера, 18:20" }
+    { route: "Перник → София", service: `${vehicles.rivo.label} · ${vehicles.rivo.model}`, price: 34, date: "Днес, 09:40" },
+    { route: "Перник · Център", service: `${vehicles.rivo.label} · ${vehicles.rivo.model}`, price: 8, date: "Вчера, 18:20" }
   ];
   const [historyItems, setHistoryItems] = useState(historySeed);
-  const selected = vehicles[ride];
+  const selected = vehicles.rivo;
   const currentRoute = route?.key === routeKey(pickup, destination) ? route : null;
-  const fares = {};
+  let fare;
   if (currentRoute && !currentRoute.isFallback) {
-    for (const type of Object.keys(vehicles)) {
-      try { fares[type] = calculateFare(currentRoute.distanceKm * 1000, type, tariffs); } catch { /* An unavailable route/tariff must not produce a price. */ }
-    }
+    try { fare = calculateFare(currentRoute.distanceKm * 1000, tariff); } catch { /* Keep submission unavailable for invalid route/tariff. */ }
   }
-  const fare = fares[ride];
   const priceCents = (bookedFare || fare)?.priceCents || 0;
   const price = priceCents / 100;
   const arrivingDriverProgress = selected.eta ? 1 - (eta / selected.eta) : 1;
@@ -311,18 +306,13 @@ export default function CustomerApp({ tariffs, openDriver, openAdmin, toast }) {
     <>
       <Header title="Твоят RIVO" onBack={back}/>
         <main className="content customerContent">
-        <div><span className="eyebrow">СТЪПКА 2 ОТ 3</span><h1>Избери автомобил</h1><p className="muted">Предварителна оценка според автомобилния маршрут.</p></div>
+        <div><span className="eyebrow">СТЪПКА 2 ОТ 3</span><h1>Детайли за курса</h1><p className="muted">Предварителна оценка според автомобилния маршрут.</p></div>
         <RouteSummary pickup={pickup} destination={destination} route={route} timing={timing} passengers={passengers} luggage={luggage} payment={payment}/>
-        <div className="rideChoices">{Object.values(vehicles).map(v => (
-          <button key={v.id} className={`rideCard ${ride === v.id ? "selected" : ""}`} onClick={() => setRide(v.id)}>
-            <div>
-              <div className="rideTop"><span><b>{v.label}</b><small>{v.model}</small></span><strong className="price">{fares[v.id] ? formatMoney(fares[v.id].priceCents) : "—"}</strong></div>
-              <small>{v.detail}</small>
-              <span className="yellow mini">Идва след ~{v.eta} мин</span>
-            </div>
-            <VehicleImage src={v.image} alt={v.model} compact/>
-          </button>
-        ))}</div>
+        <div className="rideChoices"><Card className="rideCard selected">
+          <div><div className="rideTop"><span><b>RIVO</b><small>Една заявка до партньорската мрежа</small></span><strong className="price">{fare ? formatMoney(fare.priceCents) : "—"}</strong></div>
+            <small>До 4 места. Данните за шофьора и автомобила се показват след приемане.</small>
+          </div>
+        </Card></div>
         {fare && <FareBreakdown fare={{ ...fare, durationSeconds: currentRoute.durationMinutes * 60 }}/>}
         {!fare && <p className="muted" role="status">{currentRoute?.isFallback ? "Маршрутът временно не е наличен. Не можем да изчислим цена." : "Изчисляваме маршрута и цената…"}</p>}
         {currentRoute?.isFallback && <Button secondary onClick={() => setRouteAttempt(value => value + 1)}>ИЗЧИСЛИ ОТНОВО</Button>}
@@ -338,7 +328,7 @@ export default function CustomerApp({ tariffs, openDriver, openAdmin, toast }) {
         <main className="content customerContent confirmContent">
         <div><span className="eyebrow">СТЪПКА 3 ОТ 3</span><h1>Всичко изглежда добре?</h1><p className="muted">Провери детайлите преди да поръчаш.</p></div>
         <RouteSummary pickup={pickup} destination={destination} route={route} timing={timing} passengers={passengers} luggage={luggage} payment={payment}/>
-        <Card className="confirmVehicle"><div><span className="eyebrow">ТВОЯТ АВТОМОБИЛ</span><h2>{selected.label}</h2><small>{selected.model} · до 4 места</small></div><VehicleImage src={selected.image} alt={selected.model} compact/></Card>
+        <Card className="confirmVehicle"><div><span className="eyebrow">ТВОЯТА УСЛУГА</span><h2>{selected.label}</h2><small>{selected.model} · до 4 места</small></div><VehicleImage src={selected.image} alt={selected.model} compact/></Card>
         <Card className="priceSummary"><span><small>ПРЕДВАРИТЕЛНА ОЦЕНКА</small><b>Общо за курса</b></span><strong>{fare ? formatMoney(fare.priceCents) : "Изчисляваме…"}</strong></Card>
         <FareBreakdown fare={fare}/>
         <div className="spacer"/><Button disabled={!fare} onClick={() => { setBookedFare(fare); setScreen("matching"); }}>ПОРЪЧАЙ {selected.label}</Button><button className="quietAction" onClick={back}>Промени детайлите</button>
@@ -391,7 +381,7 @@ export default function CustomerApp({ tariffs, openDriver, openAdmin, toast }) {
       <Header logo/>
         <main className="content customerContent centered">
         <div className="check">✓</div><div><span className="eyebrow">КУРСЪТ Е ЗАВЪРШЕН</span><h1>Пристигнахте</h1><p className="muted">Благодарим, че пътувахте с RIVO.</p></div>
-        <Card className="receipt"><RideClassBadge vehicle={selected}/><div className="receiptTop"><span><b>Завършен курс</b></span><strong>{formatMoney(priceCents + tip * 100)}</strong></div><div className="receiptMeta"><span><small>TRIP ID</small><b>{tripId}</b></span><span><small>ДАТА И ЧАС</small><b>{tripDate}</b></span></div><div className="receiptRow"><span>Маршрут</span><b>Перник → {locationLabel(destination).split(",")[0]}</b></div><div className="receiptRow"><span>Време</span><b>{route ? `${route.durationMinutes} мин · ${route.distanceKm.toFixed(1)} км` : "Маршрутът не е наличен"}</b></div><div className="receiptRow"><span>Плащане</span><b>{payment === "cash" ? "Кеш" : "Visa •••• 4242"}</b></div><div className="receiptRow total"><span>Общо</span><strong>{formatMoney(priceCents + tip * 100)}</strong></div></Card>
+        <Card className="receipt"><RideBadge vehicle={selected}/><div className="receiptTop"><span><b>Завършен курс</b></span><strong>{formatMoney(priceCents + tip * 100)}</strong></div><div className="receiptMeta"><span><small>TRIP ID</small><b>{tripId}</b></span><span><small>ДАТА И ЧАС</small><b>{tripDate}</b></span></div><div className="receiptRow"><span>Маршрут</span><b>Перник → {locationLabel(destination).split(",")[0]}</b></div><div className="receiptRow"><span>Време</span><b>{route ? `${route.durationMinutes} мин · ${route.distanceKm.toFixed(1)} км` : "Маршрутът не е наличен"}</b></div><div className="receiptRow"><span>Плащане</span><b>{payment === "cash" ? "Кеш" : "Visa •••• 4242"}</b></div><div className="receiptRow total"><span>Общо</span><strong>{formatMoney(priceCents + tip * 100)}</strong></div></Card>
         <div className="ratingBlock"><b>Как беше пътуването?</b><div className="stars">{[1,2,3,4,5].map(n => <button key={n} className={n <= rating ? "" : "off"} onClick={() => setRating(n)}>★</button>)}</div></div>
         <div className="tipBlock"><span className="eyebrow">БЛАГОДАРИ НА ИВАН</span><div className="tipGrid">{[0,2,5,10].map(n => <button key={n} className={tip === n ? "selected" : ""} onClick={() => setTip(n)}>{n === 0 ? "Без бакшиш" : `+${n} €`}</button>)}</div></div>
         <div className="spacer"/><Button onClick={finishRide}>ГОТОВО</Button>
@@ -411,7 +401,7 @@ export default function CustomerApp({ tariffs, openDriver, openAdmin, toast }) {
         <div className="historyList">{historyItems.map((item, index) => <Card className="historyRow" key={`${item.route}-${index}`}><span><b>{item.route}</b><small>{item.service}</small><small>{item.date}</small></span><strong>{formatMoney(Math.round(item.price * 100))}</strong></Card>)}</div>
         <div className="eyebrow">RIVO ЕКОСИСТЕМА</div>
         <Card className="switchCard" onClick={openDriver}><span className="switchIcon">R</span><span><b>RIVO Driver</b><small>Шофьорско приложение</small></span><ChevronRight className="cardChevron yellow" size={19} strokeWidth={1.8}/></Card>
-        <Card className="switchCard" onClick={openAdmin}><span className="switchIcon white">A</span><span><b>RIVO Control</b><small>Администрация и автопарк</small></span><ChevronRight className="cardChevron yellow" size={19} strokeWidth={1.8}/></Card>
+        <Card className="switchCard" onClick={openAdmin}><span className="switchIcon white">A</span><span><b>RIVO Control</b><small>Администрация и партньорски автомобили</small></span><ChevronRight className="cardChevron yellow" size={19} strokeWidth={1.8}/></Card>
       </main>
     </>
   );

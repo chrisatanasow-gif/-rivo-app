@@ -38,4 +38,4 @@ The main `/` experience is an interactive prototype. It includes browser locatio
 address-search and routing integrations, while dispatch, payments, authentication,
 notifications and ride history in that experience remain demonstrations. The
 separate `/pilot` flow persists requests and synchronizes participants through
-Postgres; it estimates fares from driving distance using example tariffs and does not process payments or approve real drivers. See [distance pricing](docs/distance-pricing.md) for the formula, quote validation, and scope.
+Postgres; it offers one RIVO service with a shared driver queue and estimates fares from driving distance using one example tariff. It does not process payments or approve real drivers. See [distance pricing](docs/distance-pricing.md) for the formula, quote validation, and scope.

@@ -1,12 +1,8 @@
-// Example tariffs for the closed pilot, in euro cents. Commercial rates are pending.
-export const DEFAULT_TARIFFS = Object.freeze({
-  city: Object.freeze({ baseFareCents: 100, perKmCents: 70 }),
-  premium: Object.freeze({ baseFareCents: 150, perKmCents: 100 })
-});
-export const TARIFF_VERSION = "example-distance-v1";
+// Single example tariff for the closed pilot, in euro cents. Commercial rates are pending.
+export const DEFAULT_TARIFF = Object.freeze({ baseFareCents: 100, perKmCents: 70 });
+export const TARIFF_VERSION = "example-rivo-distance-v1";
 
-export function calculateFare(distanceMeters, vehicleType, tariffs = DEFAULT_TARIFFS) {
-  const tariff = tariffs[vehicleType];
+export function calculateFare(distanceMeters, tariff = DEFAULT_TARIFF) {
   if (!Number.isFinite(distanceMeters) || distanceMeters < 1 || distanceMeters > 2_000_000 || !tariff
     || !Number.isSafeInteger(tariff.baseFareCents) || tariff.baseFareCents < 0 || tariff.baseFareCents > 100_000
     || !Number.isSafeInteger(tariff.perKmCents) || tariff.perKmCents < 1 || tariff.perKmCents > 100_000) {

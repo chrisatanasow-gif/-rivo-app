@@ -43,14 +43,14 @@ async function request(action, body, cookie, handler = handle, headers = {}) {
 }
 
 async function login(role = "customer", extras = {}) {
-  const response = await request("login", { code: CODE, role, name: role === "customer" ? "Пътник Тест" : "Шофьор Тест", vehicleType: "city", vehicleModel: "Тестов автомобил", vehiclePlate: "PK 1234 AA", ...extras });
+  const response = await request("login", { code: CODE, role, name: role === "customer" ? "Пътник Тест" : "Шофьор Тест", vehicleModel: "Тестов автомобил", vehiclePlate: "PK 1234 AA", ...extras });
   assert.equal(response.status, 200);
   return { cookie: response.headers["set-cookie"].split(";")[0], participant: response.data.participant, response };
 }
 
 const draft = extras => ({
   idempotencyKey: randomUUID(), pickup: { label: "Перник, Център", lat: 42.6052, lng: 23.0379 },
-  destination: { label: "Перник, Изток", lat: 42.6048, lng: 23.0422 }, vehicleType: "city", passengers: 1, ...extras
+  destination: { label: "Перник, Изток", lat: 42.6048, lng: 23.0422 }, passengers: 1, ...extras
 });
 const transition = (client, rideId, command) => request("transition", { rideId, command }, client.cookie);
 
@@ -110,17 +110,14 @@ test("a driver cannot take two different active rides", async () => {
   assert.deepEqual(results.map(result => result.status).sort(), [200, 409]);
 });
 
-test("role, ownership, vehicle class and transition order are enforced", async () => {
+test("role, ownership and transition order are enforced", async () => {
   const customer = await login();
   const stranger = await login();
   const driver = await login("driver");
-  const premium = await login("driver", { vehicleType: "premium" });
   const created = await request("create", draft(), customer.cookie);
   const id = created.data.ride.id;
   assert.equal((await request("state", undefined)).status, 401);
   assert.equal((await request("state", undefined, stranger.cookie)).data.rides.length, 0);
-  assert.equal((await request("state", undefined, premium.cookie)).data.requests.length, 0);
-  assert.equal((await transition(premium, id, "accept")).status, 409);
   assert.equal((await transition(customer, id, "accept")).status, 403);
   assert.equal((await transition(stranger, id, "cancel")).status, 409);
   assert.equal((await request("create", draft(), driver.cookie)).status, 403);
@@ -202,13 +199,12 @@ test("missing configuration and database errors return safe errors without crede
   assert.ok(!JSON.stringify(result).includes("secret-password"));
 });
 
-test("distance pricing uses integer cents, both categories and a single final rounding", () => {
-  assert.equal(calculateFare(1000, "city").priceCents, 170);
-  assert.equal(calculateFare(5000, "city").priceCents, 450);
-  assert.equal(calculateFare(35000, "city").priceCents, 2550);
-  assert.equal(calculateFare(5000, "premium").priceCents, 650);
-  assert.equal(calculateFare(1234, "city").priceCents, 186);
-  for (const meters of [null, "1000", 0, -1, NaN, Infinity]) assert.throws(() => calculateFare(meters, "city"));
+test("the single RIVO tariff uses integer cents and a single final rounding", () => {
+  assert.equal(calculateFare(1000).priceCents, 170);
+  assert.equal(calculateFare(5000).priceCents, 450);
+  assert.equal(calculateFare(35000).priceCents, 2550);
+  assert.equal(calculateFare(1234).priceCents, 186);
+  for (const meters of [null, "1000", 0, -1, NaN, Infinity]) assert.throws(() => calculateFare(meters));
 });
 
 test("quote reflects the road provider distance and does not create a ride", async () => {
@@ -217,16 +213,17 @@ test("quote reflects the road provider distance and does not create a ride", asy
   const short = await request("quote", body, customer.cookie);
   const longHandler = makeHandler({ resolveRoute: async () => ({ distanceMeters: 35000, durationSeconds: 2400 }) });
   const long = await request("quote", body, customer.cookie, longHandler);
-  const premium = await request("quote", { ...body, vehicleType: "premium" }, customer.cookie);
+  const olderClient = await request("quote", { ...body, vehicleType: "premium" }, customer.cookie);
   assert.equal(short.data.quote.priceCents, 450);
   assert.equal(long.data.quote.priceCents, 2550);
-  assert.equal(premium.data.quote.priceCents, 650);
+  assert.equal(olderClient.data.quote.priceCents, 450);
+  assert.equal(olderClient.data.quote.service, "rivo");
   assert.equal((await query("SELECT count(*)::int AS count FROM rivo_pilot_rides", []))[0].count, 0);
   const driver = await login("driver");
   assert.equal((await request("quote", body, driver.cookie)).status, 403);
 });
 
-test("a server-stored quote is bound to its passenger, route and category", async () => {
+test("a server-stored quote is bound to its passenger and route", async () => {
   const customer = await login();
   const stranger = await login();
   const body = draft();
@@ -234,7 +231,6 @@ test("a server-stored quote is bound to its passenger, route and category", asyn
   const quoted = { ...body, quoteToken: data.quote.token };
   assert.equal((await request("create", { ...quoted, quoteToken: undefined }, customer.cookie)).status, 409);
   assert.equal((await request("create", quoted, stranger.cookie)).status, 409);
-  assert.equal((await request("create", { ...quoted, vehicleType: "premium" }, customer.cookie)).status, 409);
   assert.equal((await request("create", { ...quoted, destination: { ...body.destination, lat: 42.7 } }, customer.cookie)).status, 409);
   assert.equal((await request("create", { ...quoted, quoteToken: randomUUID() }, customer.cookie)).status, 409);
   const created = await request("create", { ...quoted, priceCents: 1, distanceMeters: 1 }, customer.cookie);
@@ -293,4 +289,40 @@ test("legacy pilot rides keep their stored price without fabricating a distance 
   const state = await request("state", undefined, customer.cookie);
   assert.equal(state.data.rides[0].priceCents, 2600);
   assert.equal(state.data.rides[0].fare, null);
+});
+
+test("a previously registered Premium driver can accept a new RIVO request", async () => {
+  const customer = await login();
+  const driver = await login("driver");
+  await query("UPDATE rivo_pilot_sessions SET vehicle_type = 'premium' WHERE id = $1", [driver.participant.id]);
+  const created = await request("create", draft(), customer.cookie);
+  assert.equal(created.data.ride.service, "rivo");
+  const state = await request("state", undefined, driver.cookie);
+  assert.equal(state.data.requests[0].id, created.data.ride.id);
+  assert.equal((await transition(driver, created.data.ride.id, "accept")).status, 200);
+});
+
+test("a new driver can accept a previous Premium request without repricing it", async () => {
+  const customer = await login();
+  const driver = await login("driver");
+  const created = await request("create", draft(), customer.cookie);
+  const previousFare = { ...created.data.ride.fare, baseFareCents: 150, perKmCents: 100, distanceChargeCents: 500, priceCents: 650, tariffVersion: "example-distance-v1" };
+  await query("UPDATE rivo_pilot_rides SET vehicle_type = 'premium', price_cents = 650, fare_quote = $2::jsonb WHERE id = $1", [created.data.ride.id, JSON.stringify(previousFare)]);
+  const state = await request("state", undefined, driver.cookie);
+  assert.equal(state.data.requests[0].id, created.data.ride.id);
+  assert.equal(state.data.requests[0].priceCents, 650);
+  const accepted = await transition(driver, created.data.ride.id, "accept");
+  assert.equal(accepted.status, 200);
+  assert.equal(accepted.data.ride.priceCents, 650);
+  assert.deepEqual(accepted.data.ride.fare, previousFare);
+});
+
+test("an unbooked previous Premium quote requires a new RIVO quote", async () => {
+  const customer = await login();
+  const body = draft({ vehicleType: "premium" });
+  const quoted = await request("quote", body, customer.cookie);
+  await query("UPDATE rivo_pilot_quotes SET vehicle_type = 'premium' WHERE id = $1", [quoted.data.quote.token]);
+  const result = await request("create", { ...body, quoteToken: quoted.data.quote.token }, customer.cookie);
+  assert.equal(result.status, 409);
+  assert.equal((await query("SELECT count(*)::int AS count FROM rivo_pilot_rides", []))[0].count, 0);
 });

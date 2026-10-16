@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { DEFAULT_TARIFFS } from "../shared/fare.js";
+import { DEFAULT_TARIFF } from "../shared/fare.js";
 import { getRoadRoute, RouteError } from "./road-route.js";
 import { createFareQuotes, QuoteError } from "./fare-quote.js";
 const COOKIE = "rivo_pilot_session";
@@ -31,20 +31,22 @@ function location(value, label) {
 }
 
 function vehicleType(value) {
-  if (!Object.hasOwn(DEFAULT_TARIFFS, value)) throw new PilotError(400, "Избери категория автомобил.");
-  return value;
+  // Keep the existing storage key and accept older clients during the transition.
+  // New requests and driver registrations all belong to the single RIVO service.
+  if (value != null && !["rivo", "city", "premium"].includes(value)) throw new PilotError(400, "Невалидна услуга.");
+  return "city";
 }
 
 function participant(row) {
   return {
-    id: row.id, role: row.role, name: row.display_name,
+    id: row.id, role: row.role, name: row.display_name, service: "rivo",
     vehicleType: row.vehicle_type, vehicleModel: row.vehicle_model, vehiclePlate: row.vehicle_plate
   };
 }
 
 function ride(row) {
   return {
-    id: row.id, status: row.status, revision: row.revision,
+    id: row.id, status: row.status, revision: row.revision, service: "rivo",
     pickup: row.pickup, destination: row.destination, vehicleType: row.vehicle_type,
     passengers: row.passengers, priceCents: row.price_cents, currency: "EUR", fare: row.fare_quote || null,
     customerName: row.customer_name,
@@ -148,11 +150,11 @@ export function createPilotHandler({ query, accessCode, secureCookies = true, re
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now() + interval '24 hours') RETURNING *`,
         [randomUUID(), hash(token), gateHash, body.role, name, type, model, plate]);
         res.setHeader("Set-Cookie", cookie(token));
-        return send(200, { participant: participant(rows[0]), tariffs: DEFAULT_TARIFFS });
+        return send(200, { participant: participant(rows[0]), tariff: DEFAULT_TARIFF });
       }
 
       const session = await sessionFor(req);
-      if (action === "session" && req.method === "GET") return send(200, { participant: session ? participant(session) : null, tariffs: DEFAULT_TARIFFS });
+      if (action === "session" && req.method === "GET") return send(200, { participant: session ? participant(session) : null, tariff: DEFAULT_TARIFF });
       if (!session) throw new PilotError(401, "Влез отново във вътрешния тест.", "SESSION_REQUIRED");
 
       if (action === "quote" && req.method === "POST") {
@@ -177,8 +179,8 @@ export function createPilotHandler({ query, accessCode, secureCookies = true, re
         const mine = await query(`${SELECT_RIDES} WHERE r.${session.role === "customer" ? "customer_id" : "driver_id"} = $1 ORDER BY r.created_at DESC LIMIT 10`, [session.id]);
         const active = mine.find(row => ACTIVE.includes(row.status));
         const available = session.role === "driver" && !active
-          ? await query(`${SELECT_RIDES} WHERE r.status = 'waiting' AND r.expires_at > now() AND r.vehicle_type = $1 ORDER BY r.created_at LIMIT 20`, [session.vehicle_type]) : [];
-        return send(200, { participant: participant(session), tariffs: DEFAULT_TARIFFS, activeRide: active ? ride(active) : null, rides: mine.map(ride), requests: available.map(ride) });
+          ? await query(`${SELECT_RIDES} WHERE r.status = 'waiting' AND r.expires_at > now() ORDER BY r.created_at LIMIT 20`, []) : [];
+        return send(200, { participant: participant(session), tariff: DEFAULT_TARIFF, activeRide: active ? ride(active) : null, rides: mine.map(ride), requests: available.map(ride) });
       }
 
       if (action === "create" && req.method === "POST") {
@@ -211,10 +213,10 @@ export function createPilotHandler({ query, accessCode, secureCookies = true, re
         const change = transitions[body.command];
         if (!change || change.role !== session.role) throw new PilotError(403, "Това действие не е разрешено.");
         const accepting = body.command === "accept";
-        const ownership = accepting ? "vehicle_type = $4 AND expires_at > now()" : `${session.role === "customer" ? "customer_id" : "driver_id"} = $4`;
-        const rows = await query(`UPDATE rivo_pilot_rides SET status = $2, updated_at = now(), revision = revision + 1${accepting ? ", driver_id = $5" : ""}
+        const ownership = accepting ? "expires_at > now()" : `${session.role === "customer" ? "customer_id" : "driver_id"} = $4`;
+        const rows = await query(`UPDATE rivo_pilot_rides SET status = $2, updated_at = now(), revision = revision + 1${accepting ? ", driver_id = $4" : ""}
           WHERE id = $1 AND status = ANY($3::text[]) AND ${ownership} RETURNING id`,
-        accepting ? [body.rideId, change.to, change.from, session.vehicle_type, session.id] : [body.rideId, change.to, change.from, session.id]);
+        [body.rideId, change.to, change.from, session.id]);
         if (!rows[0]) throw new PilotError(409, "Заявката вече е променена. Обнови списъка.", "RIDE_CONFLICT");
         return send(200, { ride: ride(await getRide(rows[0].id)) });
       }

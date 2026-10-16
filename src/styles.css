@@ -51,7 +51,7 @@ small{display:block;margin-top:3px}
 .dot{width:10px;height:10px;border-radius:50%;background:var(--yellow)}.dot.gray{background:#9ca0a8}
 .place{background:transparent;color:#fff;display:flex;gap:11px;align-items:center;text-align:left;padding:7px 2px}
 .route,.payment,.historyRow{padding:14px;display:flex;align-items:center;justify-content:space-between;gap:12px}
-.rideCard{width:100%;display:grid;grid-template-columns:minmax(0,1fr) 125px;gap:10px;align-items:center;background:var(--panel);border:1px solid #23262e;border-radius:22px;padding:12px;color:#fff;text-align:left}
+.rideCard{width:100%;display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:center;background:var(--panel);border:1px solid #23262e;border-radius:22px;padding:12px;color:#fff;text-align:left}
 .rideCard.selected{border:2px solid var(--yellow);box-shadow:0 0 0 4px rgba(255,212,0,.05)}
 .rideTop{display:flex;justify-content:space-between;gap:9px}.rideTop strong,.price{font-size:21px;color:var(--yellow);font-weight:950}
 .pill{font-size:9px;color:#dfe2e8;font-weight:900;letter-spacing:.06em;background:#242830;padding:7px 9px;border-radius:999px;white-space:nowrap}
