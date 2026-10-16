@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { AlertCircle, BriefcaseBusiness, ChevronRight, CreditCard, History, Home, LoaderCircle, LocateFixed, MapPin, MessageCircle, Navigation2, Phone, Search, ShieldCheck, Share2 } from "lucide-react";
+import { AlertCircle, BriefcaseBusiness, ChevronRight, History, Home, LoaderCircle, LocateFixed, MapPin, MessageCircle, Navigation2, Pencil, Phone, Search, ShieldCheck, Share2, UserRound } from "lucide-react";
 import { Button, Card, Header, Pill, VehicleImage } from "../components/UI";
 import RivoMap from "../components/RivoMap";
 import { vehicles } from "../data/mockData";
@@ -10,14 +10,16 @@ import { getRouteGeometry } from "../services/routingService";
 import { calculateFare, formatMoney } from "../../shared/fare.js";
 import { isValidLocation, routeKey } from "../../shared/locations.js";
 import FareBreakdown from "../components/FareBreakdown.jsx";
+import useCustomerProfile from "../lib/useCustomerProfile.js";
+import { cleanCustomerLocation, formatRideDate } from "../lib/customerProfile.js";
 import "./CustomerApp.css";
 
-const savedPlaces = [
-  { name: "Дом", location: { label: "Перник, Изток", lat: 42.6048, lng: 23.0422 }, icon: Home },
-  { name: "Работа", location: { label: "София, Център", lat: 42.6977, lng: 23.3219 }, icon: BriefcaseBusiness }
+const placeSlots = [
+  { id: "home", name: "Дом", icon: Home },
+  { id: "work", name: "Работа", icon: BriefcaseBusiness }
 ];
 
-const recentLocations = [
+const popularLocations = [
   { label: "София, Център", detail: "пл. „Независимост“", lat: 42.6977, lng: 23.3219 },
   { label: "Летище София, Терминал 2", detail: "бул. „Христофор Колумб“", lat: 42.6886, lng: 23.4167 },
   { label: "Перник, Център", detail: "пл. „Кракра Пернишки“", lat: 42.6052, lng: 23.0379 }
@@ -93,10 +95,10 @@ function CancelRideDialog({ arrived, onKeep, onCancel }) {
   </div>;
 }
 
-function AddressField({ field, location, active, onFocus, onChange, onSearch, searching, suggestions, activeOption, onKeyDown }) {
+function AddressField({ field, location, active, onFocus, onChange, onSearch, searching, suggestions, activeOption, onKeyDown, customLabel }) {
   const isPickup = field === "pickup";
   const Icon = isPickup ? LocateFixed : MapPin;
-  const label = isPickup ? "Взимане" : "Дестинация";
+  const label = customLabel || (isPickup ? "Взимане" : "Дестинация");
   return <form className={`addressField ${active ? "active" : ""}`} onSubmit={event => onSearch(event, field)}>
     <Icon className="routeIcon" size={18} strokeWidth={1.8} aria-hidden="true"/>
     <label className="grow" htmlFor={`route-${field}`}><span>{label}</span>
@@ -136,6 +138,10 @@ function BookingDetails({ timing, setTiming, passengers, setPassengers, luggage,
 }
 
 export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
+  const { profile: customer, updateProfile, storageError, retrySave } = useCustomerProfile();
+  const [nameDraft, setNameDraft] = useState(customer.name);
+  const [editingPlace, setEditingPlace] = useState(null);
+  const previousDestinationRef = useRef(null);
   const [screen, setScreen] = useState("home");
   const [history, setHistory] = useState([]);
   const [pickup, setPickup] = useState(DEFAULT_PICKUP_LOCATION);
@@ -164,13 +170,12 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   const [timing, setTiming] = useState("now");
   const [payment, setPayment] = useState("cash");
   const [cancelOpen, setCancelOpen] = useState(false);
-  const [tripId] = useState("#RIVO-1048");
+  const [tripId, setTripId] = useState("");
   const [tripDate, setTripDate] = useState("");
-  const historySeed = [
-    { route: "Перник → София", service: `${vehicles.rivo.label} · ${vehicles.rivo.model}`, price: 34, date: "Днес, 09:40" },
-    { route: "Перник · Център", service: `${vehicles.rivo.label} · ${vehicles.rivo.model}`, price: 8, date: "Вчера, 18:20" }
-  ];
-  const [historyItems, setHistoryItems] = useState(historySeed);
+  const savedPlaces = placeSlots.map(slot => ({ ...slot, location: customer.places[slot.id] }));
+  const editingSlot = placeSlots.find(slot => slot.id === editingPlace);
+  const recentDestinations = customer.rides.map(ride => ride.destination).filter((location, index, values) => values.findIndex(other => other.lat === location.lat && other.lng === location.lng) === index).slice(0, 3);
+  const avatar = customer.name ? customer.name[0].toLocaleUpperCase("bg") : <UserRound size={20} aria-hidden="true"/>;
   const selected = vehicles.rivo;
   const currentRoute = route?.key === routeKey(pickup, destination) ? route : null;
   let fare;
@@ -178,7 +183,6 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
     try { fare = calculateFare(currentRoute.distanceKm * 1000, tariff); } catch { /* Keep submission unavailable for invalid route/tariff. */ }
   }
   const priceCents = (bookedFare || fare)?.priceCents || 0;
-  const price = priceCents / 100;
   const arrivingDriverProgress = selected.eta ? 1 - (eta / selected.eta) : 1;
   const tripDriverProgress = tripProgress / 100;
   const remainingTripMinutes = currentRoute ? Math.max(1, Math.ceil(currentRoute.durationMinutes * (1 - tripDriverProgress))) : null;
@@ -204,7 +208,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   }, []);
 
   useEffect(() => {
-    if (!isValidLocation(pickup) || !isValidLocation(destination)) {
+    if (editingPlace || !isValidLocation(pickup) || !isValidLocation(destination)) {
       setRoute(null);
       return undefined;
     }
@@ -214,7 +218,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
       if (active) setRoute(result);
     });
     return () => { active = false; };
-  }, [pickup, destination, routeAttempt]);
+  }, [pickup, destination, routeAttempt, editingPlace]);
 
   useEffect(() => {
     const driverLocation = isValidLocation(pickup) ? createSimulatedDriverLocation(pickup) : null;
@@ -238,6 +242,10 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   };
   const back = () => {
     invalidateAddressRequests();
+    if (editingPlace) {
+      setDestination(previousDestinationRef.current || { label: "", lat: null, lng: null });
+      setEditingPlace(null);
+    }
     setHistory(h => {
       const next = [...h];
       setScreen(next.pop() || "home");
@@ -311,6 +319,35 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
     go("destination");
   };
 
+  const editSavedPlace = id => {
+    previousDestinationRef.current = destination;
+    setEditingPlace(id);
+    setActiveAddress("destination");
+    changeAddress("destination", customer.places[id] || { label: "", lat: null, lng: null });
+    go("destination");
+  };
+
+  const saveSavedPlace = remove => {
+    const location = remove ? null : cleanCustomerLocation(destination);
+    if (!remove && (!location || addressStatus === "loading")) return;
+    updateProfile(profile => ({ ...profile, places: { ...profile.places, [editingPlace]: location } }));
+    back();
+  };
+
+  const repeatRide = ride => {
+    changeAddress("pickup", ride.pickup);
+    changeAddress("destination", ride.destination);
+    setActiveAddress("destination");
+    setPassengers(ride.passengers);
+    setLuggage(ride.luggage);
+    setPayment(ride.payment);
+    setTiming("now");
+    setBookedFare(null);
+    setRoute(null);
+    setRouteAttempt(value => value + 1);
+    go("destination");
+  };
+
   const submitAddressSearch = async (event, field) => {
     event.preventDefault();
     const query = (field === "pickup" ? pickup : destination).label.trim();
@@ -379,7 +416,6 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   const canContinue = isValidLocation(pickup) && isValidLocation(destination) && addressStatus !== "loading";
 
   const finishRide = () => {
-    setHistoryItems(items => [{ route: `${locationLabel(pickup).split(",")[0]} → ${locationLabel(destination).split(",")[0]}`, service: `${selected.label} · ${selected.model}`, price: price + tip, date: "Днес, току-що" }, ...items]);
     setHistory([]);
     setScreen("home");
     setTip(0);
@@ -388,9 +424,36 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   };
 
   const completeTrip = () => {
-    setTripDate(new Intl.DateTimeFormat("bg-BG", { dateStyle: "medium", timeStyle: "short" }).format(new Date()));
+    const completedAt = new Date().toISOString();
+    setTripDate(formatRideDate(completedAt));
+    updateProfile(profile => ({ ...profile, rides: [{
+      id: tripId, pickup: cleanCustomerLocation(pickup), destination: cleanCustomerLocation(destination),
+      priceCents, tipCents: tip * 100, rating, completedAt, passengers, luggage, payment
+    }, ...profile.rides.filter(ride => ride.id !== tripId)] }));
     setScreen("complete");
   };
+
+  const updateReceipt = change => {
+    if (change.rating !== undefined) setRating(change.rating);
+    if (change.tipCents !== undefined) setTip(change.tipCents / 100);
+    updateProfile(profile => ({ ...profile, rides: profile.rides.map(ride => ride.id === tripId ? { ...ride, ...change } : ride) }));
+  };
+
+  const bookRide = () => {
+    if (!fare) return;
+    setTripId(crypto.randomUUID());
+    setBookedFare(fare);
+    setEta(selected.eta);
+    setTripProgress(0);
+    setTip(0);
+    setRating(5);
+    setScreen("matching");
+  };
+
+  const storageNotice = storageError && <div className="profileStorageNotice" role="status">
+    <p>{storageError === "load" ? "Запазените данни не се заредиха. Можеш да добавиш адресите отново." : "Промените са само за тази сесия. Не успяхме да ги запазим на телефона."}</p>
+    <button onClick={retrySave}>Опитай да запазиш отново</button>
+  </div>;
 
   useEffect(() => {
     const content = document.querySelector(".app .content");
@@ -428,37 +491,44 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
 
   if (screen === "home") return (
     <>
-      <Header logo right={<button className="iconBtn profileBtn" onClick={() => go("profile")}>K</button>} />
+      <Header logo right={<button className="iconBtn profileBtn" aria-label="Отвори профила" onClick={() => go("profile")}>{avatar}</button>} />
         <main className="content customerContent homeContent">
-        <div className="homeIntro"><h1>Добър вечер, Кристиян</h1></div>
+        <div className="homeIntro"><h1>{customer.name ? `Здравей, ${customer.name}` : "Къде ще пътуваме?"}</h1></div>
+        {storageNotice}
         <CustomerMap pickup={pickup} destination={destination} route={route} status={pickupEditedRef.current ? "manual" : locationStatus} addressStatus={addressStatus} recenterSignal={recenterSignal} onRecenter={() => setRecenterSignal(value => value + 1)} onDestinationSelect={selectMapDestination}/>
         <button className="destinationCard" onClick={() => { setActiveAddress("destination"); go("destination"); }}>
           <span className="destinationIcon"><Navigation2 size={18} strokeWidth={1.8} aria-hidden="true"/></span><span><small>Къде отиваш?</small><b>{locationLabel(destination)}</b><small>Натисни, за да промениш маршрута</small></span><ChevronRight className="cardChevron" size={20} strokeWidth={1.8}/>
         </button>
-        <div className="savedPlaces">{savedPlaces.map(({ name, location, icon }) => <button key={name} onClick={() => choosePlace(location)}><span><PlaceIcon icon={icon}/></span><b>{name}</b></button>)}</div>
-        <div className="recentHome"><div className="eyebrow">ПОСЛЕДНИ</div>{recentLocations.slice(0, 2).map(location => <button key={location.label} onClick={() => choosePlace(location)}><History size={16} strokeWidth={1.8}/><span><b>{location.label}</b><small>{location.detail}</small></span><ChevronRight className="cardChevron" size={18} strokeWidth={1.8}/></button>)}</div>
+        <div className="savedPlaces">{savedPlaces.map(({ id, name, location, icon }) => <button key={id} aria-label={name} onClick={() => location ? choosePlace(location) : editSavedPlace(id)}><span><PlaceIcon icon={icon}/></span><div><b>{name}</b><small>{location?.label || "Добави адрес"}</small></div></button>)}</div>
+        {recentDestinations.length > 0 && <div className="recentHome"><div className="eyebrow">ПОСЛЕДНИ ДЕСТИНАЦИИ</div>{recentDestinations.map(location => <button key={`${location.lat}-${location.lng}`} onClick={() => choosePlace(location)}><History size={16} strokeWidth={1.8}/><span><b>{location.label}</b><small>{location.detail}</small></span><ChevronRight className="cardChevron" size={18} strokeWidth={1.8}/></button>)}</div>}
+        <div className="recentHome"><div className="eyebrow">ПОПУЛЯРНИ МЕСТА</div>{popularLocations.slice(0, 2).map(location => <button key={location.label} onClick={() => choosePlace(location)}><MapPin size={16} strokeWidth={1.8}/><span><b>{location.label}</b><small>{location.detail}</small></span><ChevronRight className="cardChevron" size={18} strokeWidth={1.8}/></button>)}</div>
       </main>
     </>
   );
 
   if (screen === "destination") return (
-    <CustomerScreen title="Маршрут" onBack={back} className="customerRoute" actions={<>
-      <p className="customerActionHint" role="status">{addressStatus === "loading" ? "Разпознаваме избраната точка…" : canContinue ? "Адресите са избрани. Следва цена за маршрута." : "Потърси адрес и избери резултат или точка на картата."}</p>
-      <Button onClick={() => go("rides")} disabled={!canContinue}>ПРОДЪЛЖИ</Button>
+    <CustomerScreen title={editingSlot ? `Адрес за ${editingSlot.name}` : "Маршрут"} onBack={back} className="customerRoute" actions={<>
+      <p className="customerActionHint" role="status">{editingSlot ? "Адресът се запазва на този телефон." : addressStatus === "loading" ? "Разпознаваме избраната точка…" : canContinue ? "Адресите са избрани. Следва цена за маршрута." : "Потърси адрес и избери резултат или точка на картата."}</p>
+      {editingSlot ? <>
+        <Button onClick={() => saveSavedPlace(false)} disabled={!isValidLocation(destination) || addressStatus === "loading"}>ЗАПАЗИ АДРЕСА</Button>
+        {customer.places[editingPlace] && <button className="quietAction" onClick={() => saveSavedPlace(true)}>Премахни адреса</button>}
+      </> : <Button onClick={() => go("rides")} disabled={!canContinue}>ПРОДЪЛЖИ</Button>}
     </>}>
-        <div><span className="eyebrow">СТЪПКА 1 ОТ 3</span><h1>Къде отиваме?</h1></div>
+        <div><span className="eyebrow">{editingSlot ? "ЗАПАЗЕНО МЯСТО" : "СТЪПКА 1 ОТ 3"}</span><h1>{editingSlot ? (editingPlace === "home" ? "Къде е домът ти?" : "Къде е работата ти?") : "Къде отиваме?"}</h1></div>
         <Card className="routeEditor">
-          {[["pickup", pickup], ["destination", destination]].map(([field, location]) => <React.Fragment key={field}>
-            <AddressField field={field} location={location} active={activeAddress === field} onFocus={() => focusAddress(field)} onChange={label => editAddress(field, label)} onSearch={submitAddressSearch} searching={searchStatus === "loading" && activeAddress === field} suggestions={searchResults} activeOption={activeOption} onKeyDown={suggestionKeyDown}/>
+          {(editingSlot ? [["destination", destination]] : [["pickup", pickup], ["destination", destination]]).map(([field, location]) => <React.Fragment key={field}>
+            <AddressField field={field} location={location} active={activeAddress === field} onFocus={() => focusAddress(field)} onChange={label => editAddress(field, label)} onSearch={submitAddressSearch} searching={searchStatus === "loading" && activeAddress === field} suggestions={searchResults} activeOption={activeOption} onKeyDown={suggestionKeyDown} customLabel={editingSlot ? `Адрес за ${editingSlot.name}` : undefined}/>
             {activeAddress === field && <AddressSuggestions field={field} results={searchResults} status={searchStatus} activeOption={activeOption} onSelect={selectSearchResult}/>}
           </React.Fragment>)}
         </Card>
-        <p id="route-address-hint" className="addressHint">{activeAddress === "pickup" ? "Точката на картата избира откъде да те вземем." : "Точката на картата избира къде да те оставим."}</p>
-        <CustomerMap pickup={pickup} destination={destination} route={route} status={pickupEditedRef.current ? "manual" : locationStatus} addressStatus={addressStatus} recenterSignal={recenterSignal} onRecenter={() => setRecenterSignal(value => value + 1)} onDestinationSelect={selectMapDestination}/>
-        <div className="eyebrow">ЗАПАЗЕНИ МЕСТА · {activeAddress === "pickup" ? "ВЗИМАНЕ" : "ДЕСТИНАЦИЯ"}</div>
-        <div className="savedPlaceList">{savedPlaces.map(({ name, location, icon }) => <button key={name} className="place" onClick={() => selectSearchResult(location)}><span className="placeIcon"><PlaceIcon icon={icon}/></span><span><b>{name}</b><small>{location.label}</small></span><ChevronRight className="cardChevron" size={19} strokeWidth={1.8}/></button>)}</div>
-        <div className="eyebrow">ПОСЛЕДНИ</div>
-        <div className="savedPlaceList">{recentLocations.slice(0, 2).map(location => <button className="place" key={location.label} onClick={() => selectSearchResult(location)}><span className="placeIcon"><History className="placeGlyph" size={18} strokeWidth={1.8}/></span><span><b>{location.label}</b><small>{location.detail}</small></span><ChevronRight className="cardChevron" size={19} strokeWidth={1.8}/></button>)}</div>
+        <p id="route-address-hint" className="addressHint">{editingSlot ? "Потърси мястото или избери точка на картата." : activeAddress === "pickup" ? "Точката на картата избира откъде да те вземем." : "Точката на картата избира къде да те оставим."}</p>
+        <CustomerMap pickup={editingSlot ? null : pickup} destination={destination} route={editingSlot ? null : route} status={editingSlot || pickupEditedRef.current ? "manual" : locationStatus} addressStatus={addressStatus} recenterSignal={recenterSignal} onRecenter={() => setRecenterSignal(value => value + 1)} onDestinationSelect={selectMapDestination}/>
+        {!editingSlot && savedPlaces.some(place => place.location) && <>
+          <div className="eyebrow">ЗАПАЗЕНИ МЕСТА · {activeAddress === "pickup" ? "ВЗИМАНЕ" : "ДЕСТИНАЦИЯ"}</div>
+          <div className="savedPlaceList">{savedPlaces.filter(place => place.location).map(({ id, name, location, icon }) => <button key={id} className="place" onClick={() => selectSearchResult(location)}><span className="placeIcon"><PlaceIcon icon={icon}/></span><span><b>{name}</b><small>{location.label}</small></span><ChevronRight className="cardChevron" size={19} strokeWidth={1.8}/></button>)}</div>
+        </>}
+        <div className="eyebrow">ПОПУЛЯРНИ МЕСТА</div>
+        <div className="savedPlaceList">{popularLocations.map(location => <button className="place" key={location.label} onClick={() => selectSearchResult(location)}><span className="placeIcon"><MapPin className="placeGlyph" size={18} strokeWidth={1.8}/></span><span><b>{location.label}</b><small>{location.detail}</small></span><ChevronRight className="cardChevron" size={19} strokeWidth={1.8}/></button>)}</div>
     </CustomerScreen>
   );
 
@@ -480,7 +550,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
 
   if (screen === "confirm") return (
     <CustomerScreen title="Потвърди курса" onBack={back} className="customerConfirm" actions={<>
-      <Button disabled={!fare} onClick={() => { setBookedFare(fare); setScreen("matching"); }}>ПОРЪЧАЙ {selected.label}</Button>
+      <Button disabled={!fare} onClick={bookRide}>ПОРЪЧАЙ {selected.label}</Button>
       <button className="quietAction" onClick={back}>Промени детайлите</button>
     </>}>
         <div><span className="eyebrow">СТЪПКА 3 ОТ 3</span><h1>Всичко изглежда добре?</h1><p className="muted">Провери детайлите преди да поръчаш.</p></div>
@@ -524,27 +594,36 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
 
   if (screen === "complete") return (
     <CustomerScreen logo className="customerRide customerComplete" centered actions={<Button onClick={finishRide}>ГОТОВО</Button>}>
+        {storageNotice}
         <div className="check">✓</div><div><span className="eyebrow">КУРСЪТ Е ЗАВЪРШЕН</span><h1>Пристигнахте</h1><p className="muted">Благодарим, че пътувахте с RIVO.</p></div>
-        <Card className="receipt"><RideBadge vehicle={selected}/><div className="receiptTop"><span><b>Завършен курс</b></span><strong>{formatMoney(priceCents + tip * 100)}</strong></div><div className="receiptMeta"><span><small>TRIP ID</small><b>{tripId}</b></span><span><small>ДАТА И ЧАС</small><b>{tripDate}</b></span></div><div className="receiptRow"><span>Маршрут</span><b>{locationLabel(pickup).split(",")[0]} → {locationLabel(destination).split(",")[0]}</b></div><div className="receiptRow"><span>Време</span><b>{route ? `${route.durationMinutes} мин · ${route.distanceKm.toFixed(1)} км` : "Маршрутът не е наличен"}</b></div><div className="receiptRow"><span>Плащане</span><b>{payment === "cash" ? "Кеш" : "Visa •••• 4242"}</b></div><div className="receiptRow total"><span>Общо</span><strong>{formatMoney(priceCents + tip * 100)}</strong></div></Card>
-        <div className="ratingBlock"><b>Как беше пътуването?</b><div className="stars" role="group" aria-label="Оценка на пътуването">{[1,2,3,4,5].map(n => <button key={n} className={n <= rating ? "" : "off"} aria-label={`${n} ${n === 1 ? "звезда" : "звезди"}`} aria-pressed={n === rating} onClick={() => setRating(n)}>★</button>)}</div></div>
-        <div className="tipBlock"><span className="eyebrow">БЛАГОДАРИ НА ИВАН</span><div className="tipGrid">{[0,2,5,10].map(n => <button key={n} className={tip === n ? "selected" : ""} aria-pressed={tip === n} onClick={() => setTip(n)}>{n === 0 ? "Без бакшиш" : `+${n} €`}</button>)}</div></div>
+        <Card className="receipt"><RideBadge vehicle={selected}/><div className="receiptTop"><span><b>Завършен курс</b></span><strong>{formatMoney(priceCents + tip * 100)}</strong></div><div className="receiptMeta"><span><small>TRIP ID</small><b>#RIVO-{tripId.slice(0, 8).toUpperCase()}</b></span><span><small>ДАТА И ЧАС</small><b>{tripDate}</b></span></div><div className="receiptRow"><span>Маршрут</span><b>{locationLabel(pickup).split(",")[0]} → {locationLabel(destination).split(",")[0]}</b></div><div className="receiptRow"><span>Време</span><b>{route ? `${route.durationMinutes} мин · ${route.distanceKm.toFixed(1)} км` : "Маршрутът не е наличен"}</b></div><div className="receiptRow"><span>Плащане</span><b>{payment === "cash" ? "Кеш" : "Visa •••• 4242"}</b></div><div className="receiptRow total"><span>Общо</span><strong>{formatMoney(priceCents + tip * 100)}</strong></div></Card>
+        <div className="ratingBlock"><b>Как беше пътуването?</b><div className="stars" role="group" aria-label="Оценка на пътуването">{[1,2,3,4,5].map(n => <button key={n} className={n <= rating ? "" : "off"} aria-label={`${n} ${n === 1 ? "звезда" : "звезди"}`} aria-pressed={n === rating} onClick={() => updateReceipt({ rating: n })}>★</button>)}</div></div>
+        <div className="tipBlock"><span className="eyebrow">БЛАГОДАРИ НА ИВАН</span><div className="tipGrid">{[0,2,5,10].map(n => <button key={n} className={tip === n ? "selected" : ""} aria-pressed={tip === n} onClick={() => updateReceipt({ tipCents: n * 100 })}>{n === 0 ? "Без бакшиш" : `+${n} €`}</button>)}</div></div>
     </CustomerScreen>
   );
 
   return (
-    <>
-      <Header title="Профил" onBack={back}/>
-      <main className="content customerContent">
-        <Card className="profileHero"><div className="avatar">K</div><div><h2>Кристиян</h2><small>RIVO клиент · 27 пътувания</small></div><span className="profileBadge">4.9 ★</span></Card>
-        <div className="eyebrow">ЗАПАЗЕНИ МЕСТА</div>
-        <div className="savedPlaceList profilePlaces">{savedPlaces.map(({ name, location, icon }) => <button className="place" key={name} onClick={() => choosePlace(location)}><span className="placeIcon"><PlaceIcon icon={icon}/></span><span><b>{name}</b><small>{location.label}</small></span><ChevronRight className="cardChevron" size={19} strokeWidth={1.8}/></button>)}</div>
-        <div className="eyebrow">ПЛАЩАНЕ</div><Card className="paymentProfile"><span className="paymentIcon"><CreditCard size={16} strokeWidth={1.8}/></span><span><b>Visa •••• 4242</b><small>Основен метод</small></span><ChevronRight className="cardChevron" size={19} strokeWidth={1.8}/></Card>
-        <div className="eyebrow">ПОСЛЕДНИ ПЪТУВАНИЯ</div>
-        <div className="historyList">{historyItems.map((item, index) => <Card className="historyRow" key={`${item.route}-${index}`}><span><b>{item.route}</b><small>{item.service}</small><small>{item.date}</small></span><strong>{formatMoney(Math.round(item.price * 100))}</strong></Card>)}</div>
-        <div className="eyebrow">RIVO ЕКОСИСТЕМА</div>
-        <Card className="switchCard" onClick={openDriver}><span className="switchIcon">R</span><span><b>RIVO Driver</b><small>Шофьорско приложение</small></span><ChevronRight className="cardChevron yellow" size={19} strokeWidth={1.8}/></Card>
-        <Card className="switchCard" onClick={openAdmin}><span className="switchIcon white">A</span><span><b>RIVO Control</b><small>Администрация и партньорски автомобили</small></span><ChevronRight className="cardChevron yellow" size={19} strokeWidth={1.8}/></Card>
-      </main>
-    </>
+    <CustomerScreen title="Профил" onBack={back} className="customerProfile">
+      <Card className="profileHero"><div className="avatar">{avatar}</div><div><h2>{customer.name || "Твоят профил"}</h2><small>{customer.rides.length} {customer.rides.length === 1 ? "курс" : "курса"} в историята</small></div></Card>
+      <p className="profileLocalNote">Името, адресите и историята се пазят на този телефон.</p>
+      {storageNotice}
+      <form className="profileNameForm card" onSubmit={event => { event.preventDefault(); const saved = updateProfile(profile => ({ ...profile, name: nameDraft })); setNameDraft(nameDraft.trim()); if (saved) toast("Името е запазено"); }}>
+        <label htmlFor="customer-name">Твоето име</label>
+        <input id="customer-name" autoComplete="given-name" maxLength={40} placeholder="Как да те наричаме?" value={nameDraft} onChange={event => setNameDraft(event.target.value)}/>
+        <Button secondary type="submit">Запази името</Button>
+      </form>
+      <div className="eyebrow">ЗАПАЗЕНИ МЕСТА</div>
+      <div className="savedPlaceList profilePlaces">{savedPlaces.map(({ id, name, location, icon }) => <div className="profilePlaceRow" key={id}>
+        <button className="place" onClick={() => location ? choosePlace(location) : editSavedPlace(id)}><span className="placeIcon"><PlaceIcon icon={icon}/></span><span><b>{name}</b><small>{location?.label || "Добави адрес"}</small></span></button>
+        {location && <button className="editPlaceButton" aria-label={`Промени ${name}`} onClick={() => editSavedPlace(id)}><Pencil size={18} aria-hidden="true"/></button>}
+      </div>)}</div>
+      <div className="eyebrow">ЗАВЪРШЕНИ ПЪТУВАНИЯ</div>
+      {customer.rides.length === 0 ? <Card className="emptyCustomerHistory"><History size={24} aria-hidden="true"/><b>Все още нямаш завършени пътувания.</b><small>Тук ще виждаш маршрутите и сумите от тестовите си курсове.</small></Card> : <div className="historyList">{customer.rides.map(ride => <button className="card historyRow customerHistoryRow" key={ride.id} aria-label={`Повтори маршрут ${ride.pickup.label} до ${ride.destination.label}`} onClick={() => repeatRide(ride)}>
+        <span><b>{ride.pickup.label} → {ride.destination.label}</b><small>{formatRideDate(ride.completedAt)}</small><small>RIVO · Повтори маршрута</small></span><strong>{formatMoney(ride.priceCents + ride.tipCents)}</strong>
+      </button>)}</div>}
+      <div className="eyebrow">RIVO ЕКОСИСТЕМА</div>
+      <button className="card switchCard" onClick={openDriver}><span className="switchIcon">R</span><span><b>RIVO Driver</b><small>Шофьорско приложение</small></span><ChevronRight className="cardChevron yellow" size={19} strokeWidth={1.8}/></button>
+      <button className="card switchCard" onClick={openAdmin}><span className="switchIcon white">A</span><span><b>RIVO Control</b><small>Администрация и партньорски автомобили</small></span><ChevronRight className="cardChevron yellow" size={19} strokeWidth={1.8}/></button>
+    </CustomerScreen>
   );
 }

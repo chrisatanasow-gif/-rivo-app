@@ -1,4 +1,31 @@
 .homeContent > * { flex-shrink: 0; min-width: 0; }
+.homeIntro h1 { overflow-wrap: anywhere; }
+.homeContent .savedPlaces button > div { flex: 1; min-width: 0; }
+.homeContent .savedPlaces button small { margin-top: 4px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.profileBtn { display: grid; place-items: center; }
+.customerProfile .profileHero > div { min-width: 0; }
+.customerProfile .profileHero h2 { overflow-wrap: anywhere; }
+.customerProfile .profileHero .avatar { flex: none; }
+.profileLocalNote { margin: 0; color: #aeb2ba; font-size: 12px; line-height: 1.5; }
+.profileNameForm { display: grid; gap: 10px; padding: 14px; }
+.profileNameForm label { font-size: 13px; font-weight: 800; }
+.profileNameForm input { min-width: 0; width: 100%; min-height: 48px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; color: #fff; background: var(--panel2); font-size: 16px; }
+.profileNameForm .button { min-height: 46px; }
+.profilePlaceRow { display: flex; gap: 8px; align-items: center; border-bottom: 1px solid var(--line); }
+.profilePlaceRow .place { flex: 1; min-width: 0; min-height: 64px; }
+.profilePlaceRow .place > span:nth-child(2) { min-width: 0; overflow-wrap: anywhere; }
+.editPlaceButton { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 12px; background: var(--panel2); color: var(--yellow); }
+.customerHistoryRow { width: 100%; display: flex; gap: 12px; text-align: left; color: #fff; }
+.customerHistoryRow > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.customerHistoryRow > span b { font-size: 14px; line-height: 1.4; }
+.customerHistoryRow strong { font-size: 16px; }
+.emptyCustomerHistory { display: grid; gap: 10px; padding: 18px; text-align: left; }
+.emptyCustomerHistory svg { color: var(--yellow); }
+.emptyCustomerHistory b { font-size: 14px; line-height: 1.5; }
+.customerProfile .switchCard { width: 100%; color: #fff; text-align: left; }
+.profileStorageNotice { display: grid; gap: 8px; padding: 12px; border: 1px solid #775133; border-radius: 14px; background: #241c14; color: #ffdab0; text-align: left; }
+.profileStorageNotice p { margin: 0; font-size: 12px; line-height: 1.5; }
+.profileStorageNotice button { min-height: 44px; padding: 8px; border-radius: 10px; background: var(--panel2); color: #fff; font-size: 12px; }
 
 .arrivalStatus .pill { display: block; max-width: 100px; white-space: normal; text-align: center; line-height: 1.35; }
 

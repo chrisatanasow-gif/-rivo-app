@@ -3,6 +3,14 @@ import { test, expect } from "@playwright/test";
 const result = (name, lat = 42.61, lon = 23.05) => ({ name, lat: String(lat), lon: String(lon), address: { city: "Перник" } });
 
 async function fixtures(page) {
+  await page.addInitScript(() => {
+    if (!localStorage.getItem("rivoCustomerProfileV1")) localStorage.setItem("rivoCustomerProfileV1", JSON.stringify({
+      version: 1, name: "Кристиян", places: {
+        home: { label: "Перник, Изток", lat: 42.6048, lng: 23.0422 },
+        work: { label: "София, Център", lat: 42.6977, lng: 23.3219 }
+      }, rides: []
+    }));
+  });
   await page.context().grantPermissions(["geolocation"]);
   await page.context().setGeolocation({ latitude: 42.6019, longitude: 23.0334 });
   // Empty vector tiles keep these behavior tests independent of public map servers.
@@ -70,7 +78,7 @@ for (const [width, height] of [[320, 568], [360, 640], [390, 844], [430, 932]]) 
     await expect(page.locator(".receiptRow.total strong")).toHaveText(/8,60/);
     await page.getByRole("button", { name: "ГОТОВО", exact: true }).click();
     await expect(page.locator(".homeContent")).toBeVisible();
-    await page.getByRole("button", { name: "K", exact: true }).click();
+    await page.getByRole("button", { name: "Отвори профила", exact: true }).click();
     await expect(page.locator(".historyRow").first()).toContainText(/8,60/);
   });
 }

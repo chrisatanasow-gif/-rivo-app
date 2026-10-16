@@ -111,6 +111,8 @@ export default function RivoMap({ pickup, destination, route, driverProgress, fr
     const map = mapRef.current;
     if ((recenterSignal || !isValidLocation(destination)) && isValidLocation(pickup)) {
       map.flyTo({ center: [pickup.lng, pickup.lat], zoom: 14, speed: 1.4, curve: 1.2 });
+    } else if (!isValidLocation(pickup) && isValidLocation(destination)) {
+      map.flyTo({ center: [destination.lng, destination.lat], zoom: 14, speed: 1.4, curve: 1.2 });
     }
   }, [pickup, destination, mapReady, recenterSignal]);
 
