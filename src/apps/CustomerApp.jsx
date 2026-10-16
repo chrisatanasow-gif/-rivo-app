@@ -9,6 +9,7 @@ import { getRouteGeometry } from "../services/routingService";
 import { calculateFare, formatMoney } from "../../shared/fare.js";
 import { isValidLocation, routeKey } from "../../shared/locations.js";
 import FareBreakdown from "../components/FareBreakdown.jsx";
+import "./CustomerApp.css";
 
 const savedPlaces = [
   { name: "Дом", location: { label: "Перник, Изток", lat: 42.6048, lng: 23.0422 }, icon: Home },
@@ -45,7 +46,28 @@ function RideBadge({ vehicle }) {
 }
 
 function Stepper({ value, onChange }) {
-  return <div className="stepper"><button aria-label="Намали пътниците" onClick={() => onChange(Math.max(1, value - 1))}>−</button><b>{value} {value === 1 ? "пътник" : "пътници"}</b><button aria-label="Добави пътник" onClick={() => onChange(Math.min(4, value + 1))}>+</button></div>;
+  return <div className="stepper"><button aria-label="Намали пътниците" disabled={value === 1} onClick={() => onChange(value - 1)}>−</button><b aria-live="polite">{value} {value === 1 ? "пътник" : "пътници"}</b><button aria-label="Добави пътник" disabled={value === 4} onClick={() => onChange(value + 1)}>+</button></div>;
+}
+
+function BookingScreen({ title, onBack, className = "", actions, children }) {
+  return <section className={`customerBooking ${className}`} aria-label="Поръчка на RIVO">
+    <Header title={title} onBack={onBack}/>
+    <main className="content customerContent">{children}</main>
+    <footer className="customerActions">{actions}</footer>
+  </section>;
+}
+
+function AddressField({ field, location, active, onFocus, onChange, onSearch, searching }) {
+  const isPickup = field === "pickup";
+  const Icon = isPickup ? LocateFixed : MapPin;
+  const label = isPickup ? "Взимане" : "Дестинация";
+  return <form className={`addressField ${active ? "active" : ""}`} onSubmit={event => onSearch(event, field)}>
+    <Icon className="routeIcon" size={18} strokeWidth={1.8} aria-hidden="true"/>
+    <label className="grow" htmlFor={`route-${field}`}><span>{label}</span>
+      <input id={`route-${field}`} autoComplete="off" enterKeyHint="search" placeholder={isPickup ? "Откъде да те вземем?" : "Въведи адрес или място"} value={location.label} onFocus={onFocus} onChange={event => onChange(event.target.value)} aria-describedby="route-address-hint"/>
+    </label>
+    <button className="searchButton" type="submit" aria-label={`Търси ${label.toLowerCase()}`} disabled={!location.label.trim() || searching}>{searching ? <LoaderCircle size={18} aria-hidden="true"/> : <Search size={18} aria-hidden="true"/>}</button>
+  </form>;
 }
 
 function RouteSummary({ pickup, destination, timing, passengers, luggage, payment, route }) {
@@ -62,8 +84,9 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   const [pickup, setPickup] = useState(DEFAULT_PICKUP_LOCATION);
   const [locationStatus, setLocationStatus] = useState("requesting");
   const [destination, setDestination] = useState({ label: "", lat: null, lng: null });
-  const destinationInputRef = useRef(null);
-  const destinationSuggestedRef = useRef(false);
+  const [activeAddress, setActiveAddress] = useState("destination");
+  const addressRequestRef = useRef(0);
+  const pickupEditedRef = useRef(false);
   const [route, setRoute] = useState(null);
   const [routeAttempt, setRouteAttempt] = useState(0);
   const [bookedFare, setBookedFare] = useState(null);
@@ -71,7 +94,6 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   const [searchResults, setSearchResults] = useState([]);
   const [searchStatus, setSearchStatus] = useState("idle");
   const [addressStatus, setAddressStatus] = useState("idle");
-  const reverseRequestRef = useRef(0);
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [eta, setEta] = useState(vehicles.rivo.eta);
   const [tripProgress, setTripProgress] = useState(18);
@@ -104,14 +126,15 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
     let active = true;
     requestCurrentLocation().then(async result => {
       if (!active) return;
-      setPickup(result.location);
       setLocationStatus(result.status);
+      if (pickupEditedRef.current) return;
+      setPickup(result.location);
       try {
         const geocodedPickup = await reverseGeocode(result.location);
-        if (active && geocodedPickup) setPickup(location => ({ ...location, ...geocodedPickup }));
+        if (active && !pickupEditedRef.current && geocodedPickup) setPickup(location => ({ ...location, label: geocodedPickup.label, detail: geocodedPickup.detail }));
       } catch (error) {}
     });
-    return () => { active = false; };
+    return () => { active = false; addressRequestRef.current += 1; };
   }, []);
 
   useEffect(() => {
@@ -128,7 +151,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   }, [pickup, destination, routeAttempt]);
 
   useEffect(() => {
-    const driverLocation = createSimulatedDriverLocation(pickup);
+    const driverLocation = isValidLocation(pickup) ? createSimulatedDriverLocation(pickup) : null;
     if (!driverLocation || !pickup) {
       setDriverRoute(null);
       return undefined;
@@ -143,10 +166,12 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   }, [pickup]);
 
   const go = (name) => {
+    invalidateAddressRequests();
     setHistory(h => [...h, screen]);
     setScreen(name);
   };
   const back = () => {
+    invalidateAddressRequests();
     setHistory(h => {
       const next = [...h];
       setScreen(next.pop() || "home");
@@ -154,68 +179,85 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
     });
   };
 
-  const choosePlace = (location) => {
-    destinationSuggestedRef.current = false;
-    setDestination(location);
+  const invalidateAddressRequests = () => {
+    addressRequestRef.current += 1;
     setSearchResults([]);
     setSearchStatus("idle");
+    setAddressStatus("idle");
+    return addressRequestRef.current;
+  };
+
+  const changeAddress = (field, location) => {
+    invalidateAddressRequests();
+    if (field === "pickup") {
+      pickupEditedRef.current = true;
+      setPickup(location);
+    } else {
+      setDestination(location);
+    }
+  };
+
+  const focusAddress = field => {
+    if (field !== activeAddress) invalidateAddressRequests();
+    setActiveAddress(field);
+  };
+
+  const choosePlace = location => {
+    changeAddress("destination", location);
+    setActiveAddress("destination");
     go("destination");
   };
 
-  const submitAddressSearch = async event => {
+  const submitAddressSearch = async (event, field) => {
     event.preventDefault();
-    const query = destination.label.trim();
+    const query = (field === "pickup" ? pickup : destination).label.trim();
     if (!query) return;
 
+    const requestId = invalidateAddressRequests();
+    setActiveAddress(field);
     setSearchStatus("loading");
-    setSearchResults([]);
     try {
       const results = await searchAddresses(query, pickup);
+      if (requestId !== addressRequestRef.current) return;
       setSearchResults(results);
       setSearchStatus(results.length ? "success" : "empty");
     } catch (error) {
-      setSearchStatus("error");
+      if (requestId === addressRequestRef.current) setSearchStatus("error");
     }
   };
 
   const selectSearchResult = result => {
-    destinationSuggestedRef.current = false;
-    setDestination(result);
-    setSearchResults([]);
-    setSearchStatus("idle");
+    changeAddress(activeAddress, result);
+    if (document.activeElement instanceof HTMLInputElement) document.activeElement.blur();
   };
 
   const selectMapDestination = async location => {
-    const requestId = reverseRequestRef.current + 1;
-    reverseRequestRef.current = requestId;
-    destinationSuggestedRef.current = false;
+    const field = screen === "destination" ? activeAddress : "destination";
+    changeAddress(field, { label: `Точка ${Number(location.lat).toFixed(5)}, ${Number(location.lng).toFixed(5)}`, ...location });
+    const requestId = addressRequestRef.current;
+    const setLocation = field === "pickup" ? setPickup : setDestination;
     setAddressStatus("loading");
-    setDestination({ label: "Разпознаваме адреса…", ...location });
     try {
       const result = await reverseGeocode(location);
-      if (requestId !== reverseRequestRef.current) return;
-      setDestination({
+      if (requestId !== addressRequestRef.current) return;
+      setLocation({
+        ...result,
         label: result?.label || `Точка ${Number(location.lat).toFixed(5)}, ${Number(location.lng).toFixed(5)}`,
-        ...location,
-        ...(result || {})
+        ...location
       });
     } catch (error) {
-      if (requestId === reverseRequestRef.current) {
-        setDestination({ label: `Точка ${Number(location.lat).toFixed(5)}, ${Number(location.lng).toFixed(5)}`, ...location });
+      if (requestId === addressRequestRef.current) {
+        setLocation({ label: `Точка ${Number(location.lat).toFixed(5)}, ${Number(location.lng).toFixed(5)}`, ...location });
       }
     } finally {
-      if (requestId === reverseRequestRef.current) setAddressStatus("idle");
+      if (requestId === addressRequestRef.current) setAddressStatus("idle");
     }
   };
 
-  const focusDestinationInput = () => {
-    destinationInputRef.current?.focus();
-  };
-
-  const isValidDestination = isValidLocation(destination);
+  const canContinue = isValidLocation(pickup) && isValidLocation(destination) && addressStatus !== "loading";
 
   const finishRide = () => {
-    setHistoryItems(items => [{ route: `Перник → ${locationLabel(destination).split(",")[0]}`, service: `${selected.label} · ${selected.model}`, price: price + tip, date: "Днес, току-що" }, ...items]);
+    setHistoryItems(items => [{ route: `${locationLabel(pickup).split(",")[0]} → ${locationLabel(destination).split(",")[0]}`, service: `${selected.label} · ${selected.model}`, price: price + tip, date: "Днес, току-що" }, ...items]);
     setHistory([]);
     setScreen("home");
     setTip(0);
@@ -238,12 +280,6 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
 
     resetScroll();
     const frame = window.requestAnimationFrame(resetScroll);
-    return () => window.cancelAnimationFrame(frame);
-  }, [screen]);
-
-  useEffect(() => {
-    if (screen !== "destination") return;
-    const frame = window.requestAnimationFrame(focusDestinationInput);
     return () => window.cancelAnimationFrame(frame);
   }, [screen]);
 
@@ -272,8 +308,8 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
       <Header logo right={<button className="iconBtn profileBtn" onClick={() => go("profile")}>K</button>} />
         <main className="content customerContent homeContent">
         <div className="homeIntro"><h1>Добър вечер, Кристиян</h1></div>
-        <CustomerMap pickup={pickup} destination={destination} route={route} status={locationStatus} addressStatus={addressStatus} recenterSignal={recenterSignal} onRecenter={() => setRecenterSignal(value => value + 1)} onDestinationSelect={selectMapDestination}/>
-        <button className="destinationCard" onClick={() => go("destination")}>
+        <CustomerMap pickup={pickup} destination={destination} route={route} status={pickupEditedRef.current ? "manual" : locationStatus} addressStatus={addressStatus} recenterSignal={recenterSignal} onRecenter={() => setRecenterSignal(value => value + 1)} onDestinationSelect={selectMapDestination}/>
+        <button className="destinationCard" onClick={() => { setActiveAddress("destination"); go("destination"); }}>
           <span className="destinationIcon"><Navigation2 size={18} strokeWidth={1.8} aria-hidden="true"/></span><span><small>Къде отиваш?</small><b>{locationLabel(destination)}</b><small>Натисни, за да промениш маршрута</small></span><ChevronRight className="cardChevron" size={20} strokeWidth={1.8}/>
         </button>
         <div className="savedPlaces">{savedPlaces.map(({ name, location, icon }) => <button key={name} onClick={() => choosePlace(location)}><span><PlaceIcon icon={icon}/></span><b>{name}</b></button>)}</div>
@@ -283,31 +319,34 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   );
 
   if (screen === "destination") return (
-    <>
-      <Header title="Маршрут" onBack={back}/>
-        <main className="content customerContent">
-        <div><span className="eyebrow">СТЪПКА 1 ОТ 3</span><h1>Къде отиваме?</h1><p className="muted">Избери точна дестинация за по-добра цена.</p></div>
-        <CustomerMap pickup={pickup} destination={destination} route={route} status={locationStatus} addressStatus={addressStatus} recenterSignal={recenterSignal} onRecenter={() => setRecenterSignal(value => value + 1)} onDestinationSelect={selectMapDestination}/>
-        <Card className="routeEditor"><div className="summaryLine"><LocateFixed className="routeIcon" size={17} strokeWidth={1.8}/><span><small>ВЗИМАНЕ</small><b>{pickup.label}</b></span></div><form className="summaryLine destinationInput" onSubmit={submitAddressSearch}><MapPin className="routeIcon mutedIcon" size={17} strokeWidth={1.8}/><span className="grow"><small>ДЕСТИНАЦИЯ</small><input ref={destinationInputRef} placeholder="Въведи адрес или място" value={destination.label} onFocus={() => { if (destinationSuggestedRef.current || (!isValidDestination && destination.label === "София, Център")) { destinationSuggestedRef.current = false; setDestination({ label: "", lat: null, lng: null }); } }} onChange={e => { destinationSuggestedRef.current = false; setDestination({ label: e.target.value, lat: null, lng: null }); setSearchStatus("idle"); setSearchResults([]); }} /></span><button className="searchButton" type="submit" aria-label="Търси адрес" disabled={searchStatus === "loading"}><Search size={17} strokeWidth={1.8}/></button></form></Card>
-        {searchStatus === "loading" && <div className="searchMessage">Търсим адреса…</div>}
-        {searchStatus === "empty" && <div className="searchMessage">Няма намерени места в България.</div>}
-        {searchStatus === "error" && <div className="searchMessage error">Търсенето не е налично. Опитай отново.</div>}
-        {searchResults.length > 0 && <div className="addressResults" aria-label="Резултати от търсене">{searchResults.map(result => <button className="addressResult" key={`${result.lat}-${result.lng}`} onClick={() => selectSearchResult(result)}><span className="addressResultIcon"><MapPin size={16} strokeWidth={1.8}/></span><span><b>{result.label}</b><small>{result.detail}</small></span><ChevronRight className="cardChevron" size={18} strokeWidth={1.8}/></button>)}</div>}
-        <div className="eyebrow">ЗАПАЗЕНИ МЕСТА</div>
-        <div className="savedPlaceList">{savedPlaces.map(({ name, location, icon }) => <button key={name} className="place" onClick={() => setDestination(location)}><span className="placeIcon"><PlaceIcon icon={icon}/></span><span><b>{name}</b><small>{location.label}</small></span><ChevronRight className="cardChevron" size={19} strokeWidth={1.8}/></button>)}</div>
+    <BookingScreen title="Маршрут" onBack={back} className="customerRoute" actions={<>
+      <p className="customerActionHint" role="status">{addressStatus === "loading" ? "Разпознаваме избраната точка…" : canContinue ? "Адресите са избрани. Следва цена за маршрута." : "Потърси адрес и избери резултат или точка на картата."}</p>
+      <Button onClick={() => go("rides")} disabled={!canContinue}>ПРОДЪЛЖИ</Button>
+    </>}>
+        <div><span className="eyebrow">СТЪПКА 1 ОТ 3</span><h1>Къде отиваме?</h1></div>
+        <Card className="routeEditor">
+          {[["pickup", pickup], ["destination", destination]].map(([field, location]) => <AddressField key={field} field={field} location={location} active={activeAddress === field} onFocus={() => focusAddress(field)} onChange={label => { focusAddress(field); changeAddress(field, { label, lat: null, lng: null }); }} onSearch={submitAddressSearch} searching={searchStatus === "loading" && activeAddress === field}/>)}
+        </Card>
+        <p id="route-address-hint" className="addressHint">{activeAddress === "pickup" ? "Точката на картата избира откъде да те вземем." : "Точката на картата избира къде да те оставим."}</p>
+        <div className="addressSearchStatus" role="status" aria-live="polite">
+          {searchStatus === "loading" && <p className="searchMessage">Търсим адреса…</p>}
+          {searchStatus === "empty" && <p className="searchMessage">Няма намерени места. Добави град или избери точка на картата.</p>}
+          {searchStatus === "error" && <p className="searchMessage error">Търсенето не е налично. Опитай отново или избери точка на картата.</p>}
+          {searchStatus === "success" && <p className="searchMessage">Избери {activeAddress === "pickup" ? "място за взимане" : "дестинация"} от резултатите.</p>}
+        </div>
+        {searchResults.length > 0 && <div className="addressResults" role="group" aria-label="Резултати от търсене">{searchResults.map(result => <button className="addressResult" key={`${result.lat}-${result.lng}`} onClick={() => selectSearchResult(result)}><span className="addressResultIcon"><MapPin size={16} strokeWidth={1.8}/></span><span><b>{result.label}</b><small>{result.detail}</small></span><ChevronRight className="cardChevron" size={18} strokeWidth={1.8}/></button>)}</div>}
+        <CustomerMap pickup={pickup} destination={destination} route={route} status={pickupEditedRef.current ? "manual" : locationStatus} addressStatus={addressStatus} recenterSignal={recenterSignal} onRecenter={() => setRecenterSignal(value => value + 1)} onDestinationSelect={selectMapDestination}/>
+        <div className="eyebrow">ЗАПАЗЕНИ МЕСТА · {activeAddress === "pickup" ? "ВЗИМАНЕ" : "ДЕСТИНАЦИЯ"}</div>
+        <div className="savedPlaceList">{savedPlaces.map(({ name, location, icon }) => <button key={name} className="place" onClick={() => selectSearchResult(location)}><span className="placeIcon"><PlaceIcon icon={icon}/></span><span><b>{name}</b><small>{location.label}</small></span><ChevronRight className="cardChevron" size={19} strokeWidth={1.8}/></button>)}</div>
         <div className="eyebrow">ПОСЛЕДНИ</div>
-        <div className="savedPlaceList">{recentLocations.slice(0, 2).map(location => <button className="place" key={location.label} onClick={() => setDestination(location)}><span className="placeIcon"><History className="placeGlyph" size={18} strokeWidth={1.8}/></span><span><b>{location.label}</b><small>{location.detail}</small></span><ChevronRight className="cardChevron" size={19} strokeWidth={1.8}/></button>)}</div>
-        <div className="spacer"/><Button onClick={() => go("rides")} disabled={!isValidDestination}>ПРОДЪЛЖИ</Button>
-      </main>
-    </>
+        <div className="savedPlaceList">{recentLocations.slice(0, 2).map(location => <button className="place" key={location.label} onClick={() => selectSearchResult(location)}><span className="placeIcon"><History className="placeGlyph" size={18} strokeWidth={1.8}/></span><span><b>{location.label}</b><small>{location.detail}</small></span><ChevronRight className="cardChevron" size={19} strokeWidth={1.8}/></button>)}</div>
+    </BookingScreen>
   );
 
   if (screen === "rides") return (
-    <>
-      <Header title="Твоят RIVO" onBack={back}/>
-        <main className="content customerContent">
+    <BookingScreen title="Твоят RIVO" onBack={back} actions={<Button disabled={!fare} onClick={() => go("confirm")}>ПРЕГЛЕДАЙ КУРСА{fare ? ` · ${formatMoney(fare.priceCents)}` : ""}</Button>}>
         <div><span className="eyebrow">СТЪПКА 2 ОТ 3</span><h1>Детайли за курса</h1><p className="muted">Предварителна оценка според автомобилния маршрут.</p></div>
-        <RouteSummary pickup={pickup} destination={destination} route={route} timing={timing} passengers={passengers} luggage={luggage} payment={payment}/>
+        <RouteSummary pickup={pickup} destination={destination} route={currentRoute} timing={timing} passengers={passengers} luggage={luggage} payment={payment}/>
         <div className="rideChoices"><Card className="rideCard selected">
           <div><div className="rideTop"><span><b>RIVO</b><small>Една заявка до партньорската мрежа</small></span><strong className="price">{fare ? formatMoney(fare.priceCents) : "—"}</strong></div>
             <small>До 4 места. Данните за шофьора и автомобила се показват след приемане.</small>
@@ -317,23 +356,20 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
         {!fare && <p className="muted" role="status">{currentRoute?.isFallback ? "Маршрутът временно не е наличен. Не можем да изчислим цена." : "Изчисляваме маршрута и цената…"}</p>}
         {currentRoute?.isFallback && <Button secondary onClick={() => setRouteAttempt(value => value + 1)}>ИЗЧИСЛИ ОТНОВО</Button>}
         <BookingDetails timing={timing} setTiming={setTiming} passengers={passengers} setPassengers={setPassengers} luggage={luggage} setLuggage={setLuggage} payment={payment} setPayment={setPayment} toast={toast}/>
-        <Button disabled={!fare} onClick={() => go("confirm")}>ПРЕГЛЕДАЙ КУРСА{fare ? ` · ${formatMoney(fare.priceCents)}` : ""}</Button>
-      </main>
-    </>
+    </BookingScreen>
   );
 
   if (screen === "confirm") return (
-    <>
-      <Header title="Потвърди курса" onBack={back}/>
-        <main className="content customerContent confirmContent">
+    <BookingScreen title="Потвърди курса" onBack={back} className="customerConfirm" actions={<>
+      <Button disabled={!fare} onClick={() => { setBookedFare(fare); setScreen("matching"); }}>ПОРЪЧАЙ {selected.label}</Button>
+      <button className="quietAction" onClick={back}>Промени детайлите</button>
+    </>}>
         <div><span className="eyebrow">СТЪПКА 3 ОТ 3</span><h1>Всичко изглежда добре?</h1><p className="muted">Провери детайлите преди да поръчаш.</p></div>
-        <RouteSummary pickup={pickup} destination={destination} route={route} timing={timing} passengers={passengers} luggage={luggage} payment={payment}/>
+        <RouteSummary pickup={pickup} destination={destination} route={currentRoute} timing={timing} passengers={passengers} luggage={luggage} payment={payment}/>
         <Card className="confirmVehicle"><div><span className="eyebrow">ТВОЯТА УСЛУГА</span><h2>{selected.label}</h2><small>{selected.model} · до 4 места</small></div><VehicleImage src={selected.image} alt={selected.model} compact/></Card>
         <Card className="priceSummary"><span><small>ПРЕДВАРИТЕЛНА ОЦЕНКА</small><b>Общо за курса</b></span><strong>{fare ? formatMoney(fare.priceCents) : "Изчисляваме…"}</strong></Card>
         <FareBreakdown fare={fare}/>
-        <div className="spacer"/><Button disabled={!fare} onClick={() => { setBookedFare(fare); setScreen("matching"); }}>ПОРЪЧАЙ {selected.label}</Button><button className="quietAction" onClick={back}>Промени детайлите</button>
-      </main>
-    </>
+    </BookingScreen>
   );
 
   if (screen === "matching") return (
@@ -355,7 +391,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
         <div className="statusHeader"><div><span className="eyebrow">КУРСЪТ Е ПОТВЪРДЕН</span><h1>{eta ? `Идва след ${eta} мин` : "Шофьорът пристигна"}</h1><p className="muted">{selected.model} · {selected.label}</p></div><span className="liveDot"/></div>
         <RivoMap pickup={pickup} destination={null} route={driverRoute} driverProgress={arrivingDriverProgress} frameProgress="to-pickup"/>
         <Card className="driverProfile"><div className="driverAvatar">И</div><div className="grow"><b>Иван Петров</b><small>★ 4.9 · 248 курса</small><small>{selected.model} · CB 5237 MK</small></div><div className="actions"><button aria-label="Обади се на Иван" onClick={() => toast("Обаждане към Иван…")}><Phone size={17} strokeWidth={1.8}/></button><button aria-label="Отвори чат" onClick={() => toast("Отваряме чат…")}><MessageCircle size={17} strokeWidth={1.8}/></button></div></Card>
-        <Card className="pickupSummary"><span><small>ВЗИМАНЕ</small><b>Текущо местоположение</b></span><Pill live>{eta ? "НА ПЪТ" : "ПРИСТИГНА"}</Pill></Card>
+        <Card className="pickupSummary"><span><small>ВЗИМАНЕ</small><b>{locationLabel(pickup)}</b></span><Pill live>{eta ? "НА ПЪТ" : "ПРИСТИГНА"}</Pill></Card>
         <div className="twoCols"><Button secondary onClick={() => toast("Курсът е споделен")}><Share2 size={15} strokeWidth={1.8}/> Сподели</Button><Button secondary onClick={() => toast("RIVO Safety е активен")}><ShieldCheck size={15} strokeWidth={1.8}/> Safety</Button></div>
         {cancelOpen && <div className="cancelOverlay" role="dialog" aria-modal="true" aria-labelledby="cancelTitle"><div className="cancelPanel"><div className="cancelIcon"><AlertCircle size={20} strokeWidth={1.8}/></div><div><h2 id="cancelTitle">Отказваш курса?</h2><p className="muted">Шофьорът вече е на път към теб.</p></div><div className="cancelActions"><Button secondary onClick={() => setCancelOpen(false)}>Продължи курса</Button><button className="cancelConfirm" onClick={() => { setCancelOpen(false); setHistory([]); setBookedFare(null); setScreen("home"); }}>Откажи курса</button></div></div></div>}
         <div className="spacer"/><Button onClick={() => setScreen("trip")}>ДЕМО: ШОФЬОРЪТ ПРИСТИГНА</Button><button className="quietAction" onClick={() => setCancelOpen(true)}>Откажи курса</button>
@@ -381,7 +417,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
       <Header logo/>
         <main className="content customerContent centered">
         <div className="check">✓</div><div><span className="eyebrow">КУРСЪТ Е ЗАВЪРШЕН</span><h1>Пристигнахте</h1><p className="muted">Благодарим, че пътувахте с RIVO.</p></div>
-        <Card className="receipt"><RideBadge vehicle={selected}/><div className="receiptTop"><span><b>Завършен курс</b></span><strong>{formatMoney(priceCents + tip * 100)}</strong></div><div className="receiptMeta"><span><small>TRIP ID</small><b>{tripId}</b></span><span><small>ДАТА И ЧАС</small><b>{tripDate}</b></span></div><div className="receiptRow"><span>Маршрут</span><b>Перник → {locationLabel(destination).split(",")[0]}</b></div><div className="receiptRow"><span>Време</span><b>{route ? `${route.durationMinutes} мин · ${route.distanceKm.toFixed(1)} км` : "Маршрутът не е наличен"}</b></div><div className="receiptRow"><span>Плащане</span><b>{payment === "cash" ? "Кеш" : "Visa •••• 4242"}</b></div><div className="receiptRow total"><span>Общо</span><strong>{formatMoney(priceCents + tip * 100)}</strong></div></Card>
+        <Card className="receipt"><RideBadge vehicle={selected}/><div className="receiptTop"><span><b>Завършен курс</b></span><strong>{formatMoney(priceCents + tip * 100)}</strong></div><div className="receiptMeta"><span><small>TRIP ID</small><b>{tripId}</b></span><span><small>ДАТА И ЧАС</small><b>{tripDate}</b></span></div><div className="receiptRow"><span>Маршрут</span><b>{locationLabel(pickup).split(",")[0]} → {locationLabel(destination).split(",")[0]}</b></div><div className="receiptRow"><span>Време</span><b>{route ? `${route.durationMinutes} мин · ${route.distanceKm.toFixed(1)} км` : "Маршрутът не е наличен"}</b></div><div className="receiptRow"><span>Плащане</span><b>{payment === "cash" ? "Кеш" : "Visa •••• 4242"}</b></div><div className="receiptRow total"><span>Общо</span><strong>{formatMoney(priceCents + tip * 100)}</strong></div></Card>
         <div className="ratingBlock"><b>Как беше пътуването?</b><div className="stars">{[1,2,3,4,5].map(n => <button key={n} className={n <= rating ? "" : "off"} onClick={() => setRating(n)}>★</button>)}</div></div>
         <div className="tipBlock"><span className="eyebrow">БЛАГОДАРИ НА ИВАН</span><div className="tipGrid">{[0,2,5,10].map(n => <button key={n} className={tip === n ? "selected" : ""} onClick={() => setTip(n)}>{n === 0 ? "Без бакшиш" : `+${n} €`}</button>)}</div></div>
         <div className="spacer"/><Button onClick={finishRide}>ГОТОВО</Button>
@@ -395,7 +431,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
       <main className="content customerContent">
         <Card className="profileHero"><div className="avatar">K</div><div><h2>Кристиян</h2><small>RIVO клиент · 27 пътувания</small></div><span className="profileBadge">4.9 ★</span></Card>
         <div className="eyebrow">ЗАПАЗЕНИ МЕСТА</div>
-        <div className="savedPlaceList profilePlaces">{savedPlaces.map(({ name, location, icon }) => <button className="place" key={name} onClick={() => { setDestination(location); go("destination"); }}><span className="placeIcon"><PlaceIcon icon={icon}/></span><span><b>{name}</b><small>{location.label}</small></span><ChevronRight className="cardChevron" size={19} strokeWidth={1.8}/></button>)}</div>
+        <div className="savedPlaceList profilePlaces">{savedPlaces.map(({ name, location, icon }) => <button className="place" key={name} onClick={() => choosePlace(location)}><span className="placeIcon"><PlaceIcon icon={icon}/></span><span><b>{name}</b><small>{location.label}</small></span><ChevronRight className="cardChevron" size={19} strokeWidth={1.8}/></button>)}</div>
         <div className="eyebrow">ПЛАЩАНЕ</div><Card className="paymentProfile"><span className="paymentIcon"><CreditCard size={16} strokeWidth={1.8}/></span><span><b>Visa •••• 4242</b><small>Основен метод</small></span><ChevronRight className="cardChevron" size={19} strokeWidth={1.8}/></Card>
         <div className="eyebrow">ПОСЛЕДНИ ПЪТУВАНИЯ</div>
         <div className="historyList">{historyItems.map((item, index) => <Card className="historyRow" key={`${item.route}-${index}`}><span><b>{item.route}</b><small>{item.service}</small><small>{item.date}</small></span><strong>{formatMoney(Math.round(item.price * 100))}</strong></Card>)}</div>

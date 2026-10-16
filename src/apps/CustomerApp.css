@@ -1,0 +1,89 @@
+.homeContent > * { flex-shrink: 0; min-width: 0; }
+
+.customerBooking {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.customerBooking > .header { flex: none; }
+
+.customerBooking .customerContent {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+  gap: 14px;
+  padding: 12px 18px 20px;
+}
+
+.customerBooking .customerContent > * { flex-shrink: 0; min-width: 0; }
+.customerBooking h1 { font-size: 28px; line-height: 1.12; margin-top: 5px; }
+.customerBooking .muted { font-size: 13px; margin: 8px 0 0; }
+
+.customerActions {
+  flex: none;
+  display: grid;
+  gap: 6px;
+  padding: 10px 18px calc(env(safe-area-inset-bottom) + 14px);
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.customerActions .button { min-height: 54px; padding: 12px; font-size: 14px; line-height: 1.35; }
+.customerActions .button:disabled { opacity: .45; cursor: not-allowed; }
+.customerActions .quietAction { min-height: 44px; border-radius: 12px; }
+.customerActionHint { margin: 0 0 3px; color: #aeb2ba; font-size: 11px; line-height: 1.4; }
+
+.customerBooking button:focus-visible,
+.customerBooking input:focus-visible { outline: 2px solid var(--yellow); outline-offset: 3px; }
+
+.customerRoute .routeEditor { padding: 5px 12px; }
+.addressField { display: flex; gap: 9px; align-items: center; margin: 0; padding: 10px 0; }
+.addressField + .addressField { border-top: 1px solid var(--line); }
+.addressField label { display: grid; gap: 5px; }
+.addressField label > span { color: #aeb2ba; font-size: 10px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.addressField.active label > span { color: var(--yellow); }
+.addressField input { display: block; width: 100%; min-height: 28px; padding: 0; border: 0; border-radius: 3px; background: transparent; color: #fff; font-size: 16px; font-weight: 650; }
+.addressField input::placeholder { color: #8f939c; font-weight: 450; }
+.customerRoute .searchButton { width: 44px; height: 44px; }
+.customerRoute .searchButton:disabled { cursor: not-allowed; }
+.customerRoute .searchButton .lucide-loader-circle { animation: matchingSpin 1.4s linear infinite; }
+.customerRoute .addressHint { margin: -5px 2px 0; color: #aeb2ba; font-size: 12px; line-height: 1.5; }
+.addressSearchStatus:empty { display: none; }
+.customerRoute .searchMessage { margin: 0; font-size: 12px; line-height: 1.5; }
+.customerRoute .addressResult b,
+.customerRoute .addressResult small { white-space: normal; overflow-wrap: anywhere; }
+.customerRoute .addressResult b { font-size: 14px; line-height: 1.4; }
+.customerRoute .addressResult small { font-size: 12px; }
+.customerRoute .place { min-height: 54px; }
+.customerRoute .place > span:nth-child(2) { min-width: 0; }
+.customerRoute .place b { font-size: 14px; overflow-wrap: anywhere; }
+.customerRoute .place small { font-size: 12px; }
+
+.customerRoute .customerMapWrap,
+.customerRoute .customerMapWrap .map { height: clamp(220px, 31svh, 290px); min-height: 0; }
+.customerRoute .mapRecenter { width: 44px; height: 44px; }
+
+.customerBooking .summaryLine > span { flex: 1; }
+.customerBooking .summaryLine b { white-space: normal; overflow-wrap: anywhere; font-size: 14px; line-height: 1.45; }
+.customerBooking .summaryMeta { font-size: 11px; }
+.customerBooking .optionRow { min-height: 60px; }
+.customerBooking .bookingOptions { padding: 14px 12px; }
+.customerBooking .segmented button { min-height: 44px; }
+.customerBooking .stepper { gap: 6px; }
+.customerBooking .stepper button { width: 44px; height: 44px; flex: none; }
+.customerBooking .stepper button:disabled { opacity: .3; cursor: not-allowed; }
+.customerBooking .stepper b { min-width: 58px; text-align: center; }
+.customerBooking .priceSummary { flex-wrap: wrap; }
+
+@media (max-width: 360px) {
+  .customerBooking .optionRow:has(.stepper) { flex-wrap: wrap; }
+  .customerBooking .optionRow:has(.stepper) .stepper { margin-left: auto; }
+}
+
+@media (max-height: 650px) {
+  .customerBooking .customerContent { padding-top: 6px; gap: 10px; }
+  .customerActions { padding-top: 8px; padding-bottom: calc(env(safe-area-inset-bottom) + 10px); }
+  .customerActionHint { font-size: 10px; }
+}
