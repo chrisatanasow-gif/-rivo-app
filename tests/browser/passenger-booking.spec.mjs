@@ -9,6 +9,7 @@ async function fixtures(page) {
   await page.route("https://tiles.basemaps.cartocdn.com/**", route => route.request().url().endsWith("tiles.json")
     ? route.fulfill({ json: { tilejson: "3.0.0", tiles: ["https://tiles.basemaps.cartocdn.com/test/{z}/{x}/{y}.pbf"], minzoom: 0, maxzoom: 14 } })
     : route.fulfill({ body: Buffer.alloc(0), contentType: "application/x-protobuf" }));
+  await page.route("https://photon.komoot.io/api/?*", route => route.fulfill({ json: { type: "FeatureCollection", features: [] } }));
   await page.route("https://nominatim.openstreetmap.org/reverse?*", route => route.fulfill({ json: result("Перник, Център", 42.6019, 23.0334) }));
   await page.route("https://nominatim.openstreetmap.org/search?*", route => route.fulfill({ json: [result("ул. „Кракра“ 10, Перник — вход до площад „Кракра Пернишки“")] }));
   await page.route("https://router.project-osrm.org/**", route => {
@@ -39,8 +40,8 @@ for (const [width, height] of [[320, 568], [360, 640], [390, 844], [430, 932]]) 
     await page.getByLabel("Взимане", { exact: true }).fill("Кракра 10, Перник");
     await expect(page.getByRole("button", { name: "ПРОДЪЛЖИ", exact: true })).toBeDisabled();
     await page.getByLabel("Взимане", { exact: true }).press("Enter");
-    await page.getByRole("group", { name: "Резултати от търсене" }).getByRole("button").click();
-    await expect(page.getByRole("textbox", { name: "Дестинация", exact: true })).toHaveValue("София, Център");
+    await page.getByRole("group", { name: "Резултати от търсене" }).getByRole("option").click();
+    await expect(page.getByRole("combobox", { name: "Дестинация", exact: true })).toHaveValue("София, Център");
     await page.getByRole("button", { name: "ПРОДЪЛЖИ", exact: true }).click();
     await expect(page.locator(".rideCard .price")).toHaveText(/6,60/);
     await assertPinned(page, /ПРЕГЛЕДАЙ КУРСА/);
@@ -72,7 +73,7 @@ test("an older address search cannot replace newer results or a saved place", as
   });
   await page.goto("/");
   await page.locator(".destinationCard").click();
-  const destination = page.getByRole("textbox", { name: "Дестинация", exact: true });
+  const destination = page.getByRole("combobox", { name: "Дестинация", exact: true });
   await destination.fill("стар адрес");
   const oldRequest = page.waitForRequest(request => request.url().includes("q=%D1%81%D1%82%D0%B0%D1%80"));
   await destination.press("Enter");
@@ -104,8 +105,8 @@ test("late GPS and map lookups preserve the passenger's newer choices", async ({
   await page.getByRole("button", { name: "Работа", exact: true }).click();
   await page.getByLabel("Взимане", { exact: true }).fill("Кракра");
   await page.getByLabel("Взимане", { exact: true }).press("Enter");
-  await page.getByRole("group", { name: "Резултати от търсене" }).getByRole("button").click();
-  await page.getByRole("textbox", { name: "Дестинация", exact: true }).focus();
+  await page.getByRole("group", { name: "Резултати от търсене" }).getByRole("option").click();
+  await page.getByRole("combobox", { name: "Дестинация", exact: true }).focus();
   await expect(page.locator(".mapLoadingState")).toHaveCount(0);
   await page.locator(".liveMap canvas").click({ position: { x: 100, y: 120 } });
   await expect.poll(() => reverseCount).toBe(2);
@@ -114,7 +115,7 @@ test("late GPS and map lookups preserve the passenger's newer choices", async ({
   const reverseResponse = page.waitForResponse(response => response.url().includes("/reverse?"));
   releaseReverse();
   await reverseResponse;
-  await expect(page.getByRole("textbox", { name: "Дестинация", exact: true })).toHaveValue("Перник, Изток");
+  await expect(page.getByRole("combobox", { name: "Дестинация", exact: true })).toHaveValue("Перник, Изток");
   await expect(page.getByLabel("Взимане", { exact: true })).toHaveValue(/Кракра/);
   await expect(page.getByRole("button", { name: "ПРОДЪЛЖИ", exact: true })).toBeEnabled();
 });
@@ -124,8 +125,8 @@ test("search and route failures recover without booking an unpriced route", asyn
   await page.route("https://nominatim.openstreetmap.org/search?*", route => route.fulfill({ status: 503, body: "Unavailable" }));
   await page.goto("/");
   await page.locator(".destinationCard").click();
-  await page.getByRole("textbox", { name: "Дестинация", exact: true }).fill("Липсващ адрес");
-  await page.getByRole("textbox", { name: "Дестинация", exact: true }).press("Enter");
+  await page.getByRole("combobox", { name: "Дестинация", exact: true }).fill("Липсващ адрес");
+  await page.getByRole("combobox", { name: "Дестинация", exact: true }).press("Enter");
   await expect(page.getByText(/Търсенето не е налично/)).toBeVisible();
   await expect(page.getByRole("button", { name: "ПРОДЪЛЖИ", exact: true })).toBeDisabled();
   await page.route("https://router.project-osrm.org/**", route => route.fulfill({ status: 503, body: "Unavailable" }));

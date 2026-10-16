@@ -5,6 +5,7 @@ import RivoMap from "../components/RivoMap";
 import { vehicles } from "../data/mockData";
 import { createSimulatedDriverLocation, DEFAULT_PICKUP_LOCATION, requestCurrentLocation } from "../services/locationService";
 import { reverseGeocode, searchAddresses } from "../services/geocodingService";
+import { localPlaceSuggestions, mergePlaceSuggestions, MIN_SUGGESTION_LENGTH, remotePlaceSuggestions } from "../services/placeSuggestions.js";
 import { getRouteGeometry } from "../services/routingService";
 import { calculateFare, formatMoney } from "../../shared/fare.js";
 import { isValidLocation, routeKey } from "../../shared/locations.js";
@@ -57,17 +58,38 @@ function BookingScreen({ title, onBack, className = "", actions, children }) {
   </section>;
 }
 
-function AddressField({ field, location, active, onFocus, onChange, onSearch, searching }) {
+function AddressField({ field, location, active, onFocus, onChange, onSearch, searching, suggestions, activeOption, onKeyDown }) {
   const isPickup = field === "pickup";
   const Icon = isPickup ? LocateFixed : MapPin;
   const label = isPickup ? "Взимане" : "Дестинация";
   return <form className={`addressField ${active ? "active" : ""}`} onSubmit={event => onSearch(event, field)}>
     <Icon className="routeIcon" size={18} strokeWidth={1.8} aria-hidden="true"/>
     <label className="grow" htmlFor={`route-${field}`}><span>{label}</span>
-      <input id={`route-${field}`} autoComplete="off" enterKeyHint="search" placeholder={isPickup ? "Откъде да те вземем?" : "Въведи адрес или място"} value={location.label} onFocus={onFocus} onChange={event => onChange(event.target.value)} aria-describedby="route-address-hint"/>
+      <input id={`route-${field}`} role="combobox" aria-autocomplete="list" aria-expanded={active && suggestions.length > 0} aria-controls={active && suggestions.length ? `route-suggestions-${field}` : undefined} aria-activedescendant={active && activeOption >= 0 ? `route-option-${field}-${activeOption}` : undefined} autoComplete="off" enterKeyHint="search" placeholder={isPickup ? "Откъде да те вземем?" : "Въведи адрес или място"} value={location.label} onFocus={onFocus} onChange={event => onChange(event.target.value)} onKeyDown={onKeyDown} aria-describedby="route-address-hint"/>
     </label>
     <button className="searchButton" type="submit" aria-label={`Търси ${label.toLowerCase()}`} disabled={!location.label.trim() || searching}>{searching ? <LoaderCircle size={18} aria-hidden="true"/> : <Search size={18} aria-hidden="true"/>}</button>
   </form>;
+}
+
+function AddressSuggestions({ field, results, status, activeOption, onSelect }) {
+  return <div className="addressSuggestions">
+    <div className="addressSearchStatus" role="status" aria-live="polite">
+      {status === "short" && <p className="searchMessage">Напиши поне 3 букви за предложения.</p>}
+      {status === "loading" && <p className="searchMessage">Търсим места…</p>}
+      {status === "empty" && <p className="searchMessage">Няма намерени места. Добави град или избери точка на картата.</p>}
+      {status === "error" && <p className="searchMessage error">Търсенето не е налично. Опитай с лупата или избери точка на картата.</p>}
+      {status === "partial" && <p className="searchMessage">Другите предложения временно не са налични.</p>}
+    </div>
+    {results.length > 0 && <div role="group" aria-label="Резултати от търсене">
+      <div className="eyebrow">ПРЕДЛОЖЕНИЯ · {field === "pickup" ? "ВЗИМАНЕ" : "ДЕСТИНАЦИЯ"}</div>
+      <div className="addressResults" id={`route-suggestions-${field}`} role="listbox" aria-label={`Предложения за ${field === "pickup" ? "взимане" : "дестинация"}`}>
+        {results.map((result, index) => <button type="button" role="option" aria-selected={index === activeOption} tabIndex={-1} id={`route-option-${field}-${index}`} className="addressResult" key={result.id || `${result.lat}-${result.lng}-${result.label}`} onMouseDown={event => event.preventDefault()} onClick={() => onSelect(result)}>
+          <span className="addressResultIcon"><MapPin size={16} strokeWidth={1.8}/></span><span><b>{result.label}</b><small>{result.detail}</small></span><ChevronRight className="cardChevron" size={18} strokeWidth={1.8}/>
+        </button>)}
+      </div>
+      <small className="suggestionAttribution">Данни за места: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a></small>
+    </div>}
+  </div>;
 }
 
 function RouteSummary({ pickup, destination, timing, passengers, luggage, payment, route }) {
@@ -86,6 +108,8 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   const [destination, setDestination] = useState({ label: "", lat: null, lng: null });
   const [activeAddress, setActiveAddress] = useState("destination");
   const addressRequestRef = useRef(0);
+  const suggestionTimerRef = useRef(null);
+  const suggestionAbortRef = useRef(null);
   const pickupEditedRef = useRef(false);
   const [route, setRoute] = useState(null);
   const [routeAttempt, setRouteAttempt] = useState(0);
@@ -93,6 +117,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   const [driverRoute, setDriverRoute] = useState(null);
   const [searchResults, setSearchResults] = useState([]);
   const [searchStatus, setSearchStatus] = useState("idle");
+  const [activeOption, setActiveOption] = useState(-1);
   const [addressStatus, setAddressStatus] = useState("idle");
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [eta, setEta] = useState(vehicles.rivo.eta);
@@ -134,7 +159,12 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
         if (active && !pickupEditedRef.current && geocodedPickup) setPickup(location => ({ ...location, label: geocodedPickup.label, detail: geocodedPickup.detail }));
       } catch (error) {}
     });
-    return () => { active = false; addressRequestRef.current += 1; };
+    return () => {
+      active = false;
+      addressRequestRef.current += 1;
+      window.clearTimeout(suggestionTimerRef.current);
+      suggestionAbortRef.current?.abort();
+    };
   }, []);
 
   useEffect(() => {
@@ -181,8 +211,11 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
 
   const invalidateAddressRequests = () => {
     addressRequestRef.current += 1;
+    window.clearTimeout(suggestionTimerRef.current);
+    suggestionAbortRef.current?.abort();
     setSearchResults([]);
     setSearchStatus("idle");
+    setActiveOption(-1);
     setAddressStatus("idle");
     return addressRequestRef.current;
   };
@@ -200,6 +233,40 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   const focusAddress = field => {
     if (field !== activeAddress) invalidateAddressRequests();
     setActiveAddress(field);
+    const location = field === "pickup" ? pickup : destination;
+    if (!isValidLocation(location) && location.label.trim().length >= MIN_SUGGESTION_LENGTH) queueSuggestions(location.label);
+  };
+
+  const queueSuggestions = label => {
+    const requestId = invalidateAddressRequests();
+    if (label.trim().length < MIN_SUGGESTION_LENGTH) {
+      if (label.trim()) setSearchStatus("short");
+      return;
+    }
+    const local = localPlaceSuggestions(label);
+    setSearchResults(local);
+    setSearchStatus(local.length ? "success" : "idle");
+    const controller = new AbortController();
+    suggestionAbortRef.current = controller;
+    suggestionTimerRef.current = window.setTimeout(async () => {
+      setSearchStatus("loading");
+      try {
+        const remote = await remotePlaceSuggestions(label, pickup, controller.signal);
+        if (requestId !== addressRequestRef.current) return;
+        const results = mergePlaceSuggestions(local, remote);
+        setSearchResults(results);
+        setActiveOption(-1);
+        setSearchStatus(results.length ? "success" : "empty");
+      } catch (error) {
+        if (requestId === addressRequestRef.current && !controller.signal.aborted) setSearchStatus(local.length ? "partial" : "error");
+      }
+    }, 400);
+  };
+
+  const editAddress = (field, label) => {
+    setActiveAddress(field);
+    changeAddress(field, { label, lat: null, lng: null });
+    queueSuggestions(label);
   };
 
   const choosePlace = location => {
@@ -215,20 +282,39 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
 
     const requestId = invalidateAddressRequests();
     setActiveAddress(field);
+    const local = localPlaceSuggestions(query);
+    setSearchResults(local);
     setSearchStatus("loading");
     try {
-      const results = await searchAddresses(query, pickup);
+      const found = await searchAddresses(query, pickup);
       if (requestId !== addressRequestRef.current) return;
+      const results = mergePlaceSuggestions(local, found);
       setSearchResults(results);
       setSearchStatus(results.length ? "success" : "empty");
     } catch (error) {
-      if (requestId === addressRequestRef.current) setSearchStatus("error");
+      if (requestId === addressRequestRef.current) setSearchStatus(local.length ? "partial" : "error");
     }
   };
 
   const selectSearchResult = result => {
     changeAddress(activeAddress, result);
     if (document.activeElement instanceof HTMLInputElement) document.activeElement.blur();
+  };
+
+  const suggestionKeyDown = event => {
+    if (event.nativeEvent.isComposing) return;
+    if ((event.key === "ArrowDown" || event.key === "ArrowUp") && searchResults.length) {
+      event.preventDefault();
+      setActiveOption(index => event.key === "ArrowDown"
+        ? (index + 1) % searchResults.length
+        : (index <= 0 ? searchResults.length - 1 : index - 1));
+    } else if (event.key === "Enter" && activeOption >= 0 && searchResults[activeOption]) {
+      event.preventDefault();
+      selectSearchResult(searchResults[activeOption]);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      invalidateAddressRequests();
+    }
   };
 
   const selectMapDestination = async location => {
@@ -325,16 +411,12 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
     </>}>
         <div><span className="eyebrow">СТЪПКА 1 ОТ 3</span><h1>Къде отиваме?</h1></div>
         <Card className="routeEditor">
-          {[["pickup", pickup], ["destination", destination]].map(([field, location]) => <AddressField key={field} field={field} location={location} active={activeAddress === field} onFocus={() => focusAddress(field)} onChange={label => { focusAddress(field); changeAddress(field, { label, lat: null, lng: null }); }} onSearch={submitAddressSearch} searching={searchStatus === "loading" && activeAddress === field}/>)}
+          {[["pickup", pickup], ["destination", destination]].map(([field, location]) => <React.Fragment key={field}>
+            <AddressField field={field} location={location} active={activeAddress === field} onFocus={() => focusAddress(field)} onChange={label => editAddress(field, label)} onSearch={submitAddressSearch} searching={searchStatus === "loading" && activeAddress === field} suggestions={searchResults} activeOption={activeOption} onKeyDown={suggestionKeyDown}/>
+            {activeAddress === field && <AddressSuggestions field={field} results={searchResults} status={searchStatus} activeOption={activeOption} onSelect={selectSearchResult}/>}
+          </React.Fragment>)}
         </Card>
         <p id="route-address-hint" className="addressHint">{activeAddress === "pickup" ? "Точката на картата избира откъде да те вземем." : "Точката на картата избира къде да те оставим."}</p>
-        <div className="addressSearchStatus" role="status" aria-live="polite">
-          {searchStatus === "loading" && <p className="searchMessage">Търсим адреса…</p>}
-          {searchStatus === "empty" && <p className="searchMessage">Няма намерени места. Добави град или избери точка на картата.</p>}
-          {searchStatus === "error" && <p className="searchMessage error">Търсенето не е налично. Опитай отново или избери точка на картата.</p>}
-          {searchStatus === "success" && <p className="searchMessage">Избери {activeAddress === "pickup" ? "място за взимане" : "дестинация"} от резултатите.</p>}
-        </div>
-        {searchResults.length > 0 && <div className="addressResults" role="group" aria-label="Резултати от търсене">{searchResults.map(result => <button className="addressResult" key={`${result.lat}-${result.lng}`} onClick={() => selectSearchResult(result)}><span className="addressResultIcon"><MapPin size={16} strokeWidth={1.8}/></span><span><b>{result.label}</b><small>{result.detail}</small></span><ChevronRight className="cardChevron" size={18} strokeWidth={1.8}/></button>)}</div>}
         <CustomerMap pickup={pickup} destination={destination} route={route} status={pickupEditedRef.current ? "manual" : locationStatus} addressStatus={addressStatus} recenterSignal={recenterSignal} onRecenter={() => setRecenterSignal(value => value + 1)} onDestinationSelect={selectMapDestination}/>
         <div className="eyebrow">ЗАПАЗЕНИ МЕСТА · {activeAddress === "pickup" ? "ВЗИМАНЕ" : "ДЕСТИНАЦИЯ"}</div>
         <div className="savedPlaceList">{savedPlaces.map(({ name, location, icon }) => <button key={name} className="place" onClick={() => selectSearchResult(location)}><span className="placeIcon"><PlaceIcon icon={icon}/></span><span><b>{name}</b><small>{location.label}</small></span><ChevronRight className="cardChevron" size={19} strokeWidth={1.8}/></button>)}</div>

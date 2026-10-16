@@ -41,6 +41,7 @@
 .customerRoute .routeEditor { padding: 5px 12px; }
 .addressField { display: flex; gap: 9px; align-items: center; margin: 0; padding: 10px 0; }
 .addressField + .addressField { border-top: 1px solid var(--line); }
+.addressSuggestions + .addressField { border-top: 1px solid var(--line); }
 .addressField label { display: grid; gap: 5px; }
 .addressField label > span { color: #aeb2ba; font-size: 10px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
 .addressField.active label > span { color: var(--yellow); }
@@ -56,6 +57,14 @@
 .customerRoute .addressResult small { white-space: normal; overflow-wrap: anywhere; }
 .customerRoute .addressResult b { font-size: 14px; line-height: 1.4; }
 .customerRoute .addressResult small { font-size: 12px; }
+.addressSuggestions:has(.addressSearchStatus:empty):not(:has(.addressResults)) { display: none; }
+.addressSuggestions { padding: 0 0 10px; }
+.addressSuggestions .eyebrow { margin: 4px 0 8px; }
+.addressSuggestions .searchMessage { margin: 0 0 8px; }
+.addressSuggestions .addressResult { border-radius: 12px; padding: 10px 8px; }
+.addressSuggestions .addressResult[aria-selected="true"] { border-color: var(--yellow); background: #252316; }
+.suggestionAttribution { margin-top: 9px; font-size: 10px; }
+.suggestionAttribution a { color: #aeb2ba; }
 .customerRoute .place { min-height: 54px; }
 .customerRoute .place > span:nth-child(2) { min-width: 0; }
 .customerRoute .place b { font-size: 14px; overflow-wrap: anywhere; }

@@ -53,10 +53,12 @@ function normalizeResult(result) {
     .join(" ");
   const place = address.city || address.town || address.village || address.municipality || address.county;
   const area = address.suburb || address.neighbourhood || address.quarter;
-  const label = street || result.name || place || result.display_name?.split(",")[0] || "Избрана точка";
+  const placeName = result.category && !["highway", "place", "boundary"].includes(result.category) ? result.name : null;
+  const label = placeName || street || result.name || place || result.display_name?.split(",")[0] || "Избрана точка";
   const detail = [area, place].filter(Boolean).filter((value, index, values) => values.indexOf(value) === index).join(", ") || "България";
 
   return {
+    id: result.osm_id && result.osm_type ? `osm:${result.osm_type[0].toUpperCase()}:${result.osm_id}` : undefined,
     label,
     detail,
     lat: Number(result.lat),
