@@ -468,7 +468,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
 
   if (screen === "arriving") return (
     <>
-      <Header logo right={<Pill live>ШОФЬОРЪТ ИДВА</Pill>}/>
+      <Header logo right={<span className="arrivalStatus" role="status"><Pill live>{eta ? "ШОФЬОРЪТ ИДВА" : "ШОФЬОРЪТ ПРИСТИГНА"}</Pill></span>}/>
         <main className="content customerContent">
         <div className="statusHeader"><div><span className="eyebrow">КУРСЪТ Е ПОТВЪРДЕН</span><h1>{eta ? `Идва след ${eta} мин` : "Шофьорът пристигна"}</h1><p className="muted">{selected.model} · {selected.label}</p></div><span className="liveDot"/></div>
         <RivoMap pickup={pickup} destination={null} route={driverRoute} driverProgress={arrivingDriverProgress} frameProgress="to-pickup"/>
