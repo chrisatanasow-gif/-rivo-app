@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { Button, Card, Header, MapMock, Pill, VehicleImage } from "../components/UI";
 import { vehicles } from "../data/mockData";
+import { calculateFare, formatMoney } from "../../shared/fare.js";
 
-export default function DriverApp({ close, toast }) {
+export default function DriverApp({ close, tariffs, toast }) {
   const [screen, setScreen] = useState("home");
   const [online, setOnline] = useState(true);
   const [wait, setWait] = useState(0);
   const [progress, setProgress] = useState(18);
   const bmw = vehicles.premium;
+  const demoFare = calculateFare(31_000, "premium", tariffs);
 
   useEffect(() => {
     if (screen !== "waiting") return;
@@ -51,7 +53,7 @@ export default function DriverApp({ close, toast }) {
       <Header title="НОВА ЗАЯВКА" right={<Pill live>12 сек</Pill>}/>
       <main className="content">
         <Card className="request">
-          <div className="spaceBetween"><span><span className="eyebrow">RIVO PREMIUM</span><h2>34 €</h2></span><span className="rightText"><b>~38 мин</b><small>31 км</small></span></div>
+          <div className="spaceBetween"><span><span className="eyebrow">RIVO PREMIUM</span><h2>{formatMoney(demoFare.priceCents)}</h2><small>Примерна тарифа</small></span><span className="rightText"><b>~38 мин</b><small>31 км</small></span></div>
           <VehicleImage src={bmw.image} alt={bmw.model}/>
           <div className="addressStep"><i/><span><b>Перник, Изток</b><small>Вземане · ~4 мин от теб</small></span></div>
           <div className="addressStep end"><i/><span><b>София, Център</b><small>Дестинация</small></span></div>
@@ -96,7 +98,7 @@ export default function DriverApp({ close, toast }) {
         <Card className="navCard"><span className="turn">↑</span><span><small>ПРОДЪЛЖИ</small><b>бул. „Цар Борис III“</b><small>8.4 км до дестинацията</small></span></Card>
         <MapMock mode="driver" progress={progress}/>
         <div className="progress"><i style={{width:`${progress}%`}}/></div>
-        <Card className="route"><span><b>София, Център</b><small>Кристиян · RIVO Premium</small></span><strong className="price">34 €</strong></Card>
+        <Card className="route"><span><b>София, Център</b><small>Кристиян · RIVO Premium</small></span><strong className="price">{formatMoney(demoFare.priceCents)}</strong></Card>
         <div className="spacer"/>
         <Button onClick={() => setScreen("complete")}>ЗАВЪРШИ КУРСА</Button>
       </main>
@@ -108,8 +110,8 @@ export default function DriverApp({ close, toast }) {
       <Header title="КУРС ЗАВЪРШЕН"/>
       <main className="content centered">
         <div className="check">✓</div><h1>Готово</h1><p className="muted">Пътуването е приключено успешно.</p>
-        <Card className="earnCard"><span className="eyebrow">ПРИХОД ОТ КУРСА</span><strong>34 €</strong><small>RIVO Premium · 38 мин · 31 км</small></Card>
-        <div className="kpiGrid full"><Card className="kpi"><span className="eyebrow">ДНЕС</span><strong>120 €</strong><small>5 курса</small></Card><Card className="kpi"><span className="eyebrow">РЕЙТИНГ</span><strong>4.9 ★</strong><small>последни 100 курса</small></Card></div>
+        <Card className="earnCard"><span className="eyebrow">ПРИХОД ОТ КУРСА</span><strong>{formatMoney(demoFare.priceCents)}</strong><small>RIVO Premium · 38 мин · 31 км · примерна тарифа</small></Card>
+        <div className="kpiGrid full"><Card className="kpi"><span className="eyebrow">ДНЕС</span><strong>{formatMoney(8600 + demoFare.priceCents)}</strong><small>5 курса</small></Card><Card className="kpi"><span className="eyebrow">РЕЙТИНГ</span><strong>4.9 ★</strong><small>последни 100 курса</small></Card></div>
         <div className="spacer"/>
         <Button onClick={() => setScreen("home")}>ОБРАТНО ОНЛАЙН</Button>
       </main>

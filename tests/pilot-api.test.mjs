@@ -4,24 +4,34 @@ import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { PGlite } from "@electric-sql/pglite";
 import { createPilotHandler } from "../server/pilot-handler.js";
+import { calculateFare } from "../shared/fare.js";
+import { getRoadRoute, RouteError } from "../server/road-route.js";
 
 const CODE = "rivo-local-test-invitation";
 let db;
 let handle;
 const query = async (statement, parameters) => (await db.query(statement, parameters)).rows;
-const makeHandler = () => createPilotHandler({ query, accessCode: CODE, secureCookies: true, reportError: error => { throw error; } });
+const makeHandler = (options = {}) => createPilotHandler({ query, accessCode: CODE, secureCookies: true,
+  resolveRoute: async () => ({ distanceMeters: 5000, durationSeconds: 600, routeSource: "test-fixture" }),
+  reportError: error => { throw error; }, ...options });
 
 before(async () => {
   db = new PGlite();
   await db.exec(await readFile(new URL("../server/pilot-schema.sql", import.meta.url), "utf8"));
 });
 beforeEach(async () => {
-  await db.exec("TRUNCATE rivo_pilot_rides, rivo_pilot_sessions, rivo_pilot_login_attempts");
+  await db.exec("TRUNCATE rivo_pilot_quotes, rivo_pilot_rides, rivo_pilot_sessions, rivo_pilot_login_attempts");
   handle = makeHandler();
 });
 after(async () => { await db?.close(); });
 
 async function request(action, body, cookie, handler = handle, headers = {}) {
+  // Existing lifecycle tests obtain a real server quote before their create request.
+  if (action === "create" && body && !Object.hasOwn(body, "quoteToken")) {
+    const result = await request("quote", body, cookie, handler, headers);
+    if (result.status !== 200) return result;
+    body = { ...body, quoteToken: result.data.quote.token };
+  }
   let payload;
   const response = { statusCode: 200, headers: {}, setHeader(name, value) { this.headers[name.toLowerCase()] = value; }, end(value) { payload = value; } };
   await handler({
@@ -50,7 +60,8 @@ test("two independent sessions share the full ride lifecycle across handler inst
   const created = await request("create", draft({ priceCents: 1 }), customer.cookie);
   assert.equal(created.status, 201);
   const id = created.data.ride.id;
-  assert.equal(created.data.ride.priceCents, 2600);
+  assert.equal(created.data.ride.priceCents, 450);
+  assert.equal(created.data.ride.fare.distanceMeters, 5000);
   const otherInstance = makeHandler();
   const inbox = await request("state", undefined, driver.cookie, otherInstance);
   assert.equal(inbox.data.requests[0].id, id);
@@ -189,4 +200,97 @@ test("missing configuration and database errors return safe errors without crede
   const result = await request("login", { role: "customer", code: CODE, name: "Пътник" }, null, unavailable);
   assert.equal(result.status, 503);
   assert.ok(!JSON.stringify(result).includes("secret-password"));
+});
+
+test("distance pricing uses integer cents, both categories and a single final rounding", () => {
+  assert.equal(calculateFare(1000, "city").priceCents, 170);
+  assert.equal(calculateFare(5000, "city").priceCents, 450);
+  assert.equal(calculateFare(35000, "city").priceCents, 2550);
+  assert.equal(calculateFare(5000, "premium").priceCents, 650);
+  assert.equal(calculateFare(1234, "city").priceCents, 186);
+  for (const meters of [null, "1000", 0, -1, NaN, Infinity]) assert.throws(() => calculateFare(meters, "city"));
+});
+
+test("quote reflects the road provider distance and does not create a ride", async () => {
+  const customer = await login();
+  const body = draft();
+  const short = await request("quote", body, customer.cookie);
+  const longHandler = makeHandler({ resolveRoute: async () => ({ distanceMeters: 35000, durationSeconds: 2400 }) });
+  const long = await request("quote", body, customer.cookie, longHandler);
+  const premium = await request("quote", { ...body, vehicleType: "premium" }, customer.cookie);
+  assert.equal(short.data.quote.priceCents, 450);
+  assert.equal(long.data.quote.priceCents, 2550);
+  assert.equal(premium.data.quote.priceCents, 650);
+  assert.equal((await query("SELECT count(*)::int AS count FROM rivo_pilot_rides", []))[0].count, 0);
+  const driver = await login("driver");
+  assert.equal((await request("quote", body, driver.cookie)).status, 403);
+});
+
+test("a server-stored quote is bound to its passenger, route and category", async () => {
+  const customer = await login();
+  const stranger = await login();
+  const body = draft();
+  const { data } = await request("quote", body, customer.cookie);
+  const quoted = { ...body, quoteToken: data.quote.token };
+  assert.equal((await request("create", { ...quoted, quoteToken: undefined }, customer.cookie)).status, 409);
+  assert.equal((await request("create", quoted, stranger.cookie)).status, 409);
+  assert.equal((await request("create", { ...quoted, vehicleType: "premium" }, customer.cookie)).status, 409);
+  assert.equal((await request("create", { ...quoted, destination: { ...body.destination, lat: 42.7 } }, customer.cookie)).status, 409);
+  assert.equal((await request("create", { ...quoted, quoteToken: randomUUID() }, customer.cookie)).status, 409);
+  const created = await request("create", { ...quoted, priceCents: 1, distanceMeters: 1 }, customer.cookie);
+  assert.equal(created.status, 201);
+  assert.equal(created.data.ride.priceCents, 450);
+  assert.equal(created.data.ride.fare.distanceMeters, 5000);
+});
+
+test("expired quotes are rejected, while an idempotent retry preserves an already saved fare", async () => {
+  const customer = await login();
+  let clock = Date.now();
+  const handler = makeHandler({ now: () => clock });
+  const body = draft();
+  const quoted = await request("quote", body, customer.cookie, handler);
+  const posted = { ...body, quoteToken: quoted.data.quote.token };
+  const created = await request("create", posted, customer.cookie, handler);
+  assert.equal(created.status, 201);
+  clock += 6 * 60 * 1000;
+  const retry = await request("create", posted, customer.cookie, handler);
+  assert.equal(retry.status, 200);
+  assert.equal(retry.data.ride.priceCents, 450);
+  const expired = await request("create", { ...posted, idempotencyKey: randomUUID() }, customer.cookie, handler);
+  assert.equal(expired.status, 409);
+  assert.equal(expired.data.code, "QUOTE_EXPIRED");
+});
+
+test("routing outages return a visible safe error and never generate a straight-line fare", async () => {
+  const customer = await login();
+  const handler = makeHandler({ resolveRoute: async () => { throw new RouteError("Маршрутът временно не е наличен."); } });
+  const response = await request("quote", draft(), customer.cookie, handler);
+  assert.equal(response.status, 503);
+  assert.equal(response.data.code, "ROUTE_UNAVAILABLE");
+  assert.equal(response.data.quote, undefined);
+});
+
+test("OSRM responses are validated and distance/duration are read in metres and seconds", async () => {
+  const body = draft();
+  let target;
+  const result = await getRoadRoute(body.pickup, body.destination, { fetchImpl: async url => {
+    target = url;
+    return { ok: true, json: async () => ({ code: "Ok", routes: [{ distance: 1234.4, duration: 123.4 }] }) };
+  } });
+  assert.equal(result.distanceMeters, 1234);
+  assert.equal(result.durationSeconds, 123);
+  assert.equal(target.searchParams.get("radiuses"), "1000;1000");
+  for (const data of [{ code: "NoRoute" }, { code: "Ok", routes: [{ distance: 0, duration: 0 }] }, { code: "Ok", routes: [{ distance: null, duration: 30 }] }]) {
+    await assert.rejects(getRoadRoute(body.pickup, body.destination, { fetchImpl: async () => ({ ok: true, json: async () => data }) }), error => error.code === "NO_ROUTE");
+  }
+  await assert.rejects(getRoadRoute(body.pickup, body.destination, { fetchImpl: async () => { throw new Error("network unavailable"); } }), error => error.code === "ROUTE_UNAVAILABLE");
+});
+
+test("legacy pilot rides keep their stored price without fabricating a distance breakdown", async () => {
+  const customer = await login();
+  const created = await request("create", draft(), customer.cookie);
+  await query("UPDATE rivo_pilot_rides SET fare_quote = NULL, price_cents = 2600 WHERE id = $1", [created.data.ride.id]);
+  const state = await request("state", undefined, customer.cookie);
+  assert.equal(state.data.rides[0].priceCents, 2600);
+  assert.equal(state.data.rides[0].fare, null);
 });

@@ -3,6 +3,9 @@ import { ArrowRight, CarFront, CircleDot, LogOut, MapPin, RefreshCw, Users } fro
 import { Button, Card, Header, Pill } from "../components/UI";
 import { pilotRequest } from "../services/pilotService";
 import { searchAddresses } from "../services/geocodingService";
+import { useFareQuote } from "../services/useFareQuote.js";
+import { formatMoney } from "../../shared/fare.js";
+import FareBreakdown from "../components/FareBreakdown.jsx";
 import "./pilot.css";
 
 const PRESETS = [
@@ -20,7 +23,6 @@ const STATUS = {
   expired: ["Няма приел шофьор", "Заявката изтече. Можеш да опиташ отново."]
 };
 const TERMINAL = ["completed", "cancelled", "expired"];
-const money = cents => new Intl.NumberFormat("bg-BG", { style: "currency", currency: "EUR" }).format(cents / 100);
 const category = type => type === "premium" ? "RIVO Premium" : "RIVO City";
 
 function PilotLogin({ onLogin, busy }) {
@@ -89,9 +91,10 @@ function PlaceField({ label, value, onChange, disabled }) {
 
 function RideDetails({ ride }) {
   return <Card className="pilotRide">
-    <div className="pilotRideHeading"><span><b>{category(ride.vehicleType)}</b><small>Тестова цена</small></span><strong className="price">{money(ride.priceCents)}</strong></div>
+    <div className="pilotRideHeading"><span><b>{category(ride.vehicleType)}</b><small>{ride.fare ? "Предварителна оценка" : "Предишен тестов курс"}</small></span><strong className="price">{formatMoney(ride.priceCents)}</strong></div>
     <div className="summaryLine"><CircleDot size={17}/><span><small>ВЗИМАНЕ</small><b>{ride.pickup.label}</b></span></div>
     <div className="summaryLine"><MapPin size={17}/><span><small>ДЕСТИНАЦИЯ</small><b>{ride.destination.label}</b></span></div>
+    <FareBreakdown fare={ride.fare}/>
     <small>{ride.passengers} {ride.passengers === 1 ? "пътник" : "пътници"} · № {ride.id.slice(0, 8).toUpperCase()}</small>
   </Card>;
 }
@@ -107,6 +110,7 @@ function CustomerPilot({ state, busy, onCreate, onTransition }) {
   const requestKey = useRef(null);
   const latest = state.rides[0];
   const ride = state.activeRide || (latest?.id !== dismissed ? latest : null);
+  const quote = useFareQuote(pickup, destination, type, !ride);
   if (ride) return <>
     <div className="pilotStatus" aria-live="polite"><span className="eyebrow">{TERMINAL.includes(ride.status) ? "РЕЗУЛТАТ" : "ТВОЯТА ЗАЯВКА"}</span><h1>{STATUS[ride.status][0]}</h1><p className="muted">{STATUS[ride.status][1]}</p></div>
     <RideDetails ride={ride}/>
@@ -124,12 +128,16 @@ function CustomerPilot({ state, busy, onCreate, onTransition }) {
     <PlaceField label="Дестинация" value={destination} onChange={setDestination} disabled={busy}/>
     <label className="pilotField">Автомобил<select value={type} disabled={busy} onChange={event => setType(event.target.value)}><option value="city">RIVO City</option><option value="premium">RIVO Premium</option></select></label>
     <label className="pilotField">Пътници<select value={passengers} disabled={busy} onChange={event => setPassengers(Number(event.target.value))}>{[1, 2, 3, 4].map(count => <option key={count} value={count}>{count}</option>)}</select></label>
-    <Card className="priceSummary"><span><small>ТЕСТОВА ЦЕНА</small><b>{category(type)}</b></span><strong>{money(state.prices[type])}</strong></Card>
-    <Button disabled={busy || !pickup || !destination} onClick={() => {
-      requestKey.current ||= window.crypto.randomUUID();
-      onCreate({ pickup, destination, vehicleType: type, passengers, idempotencyKey: requestKey.current });
+    <section aria-live="polite" aria-label="Предварителна цена">
+      {quote.loading && <p className="pilotNote" role="status">Изчисляваме маршрута и цената…</p>}
+      {quote.error && <div className="pilotError" role="alert">{quote.error}<button type="button" disabled={busy} onClick={quote.retry}>Изчисли отново</button></div>}
+      {quote.quote && <><Card className="priceSummary"><span><small>ПРЕДВАРИТЕЛНА ОЦЕНКА</small><b>{category(type)}</b></span><strong data-testid="fare-total">{formatMoney(quote.quote.priceCents)}</strong></Card><FareBreakdown fare={quote.quote}/></>}
+    </section>
+    <Button disabled={busy || !quote.quote} onClick={() => {
+      if (requestKey.current?.key !== quote.key) requestKey.current = { key: quote.key, id: window.crypto.randomUUID() };
+      onCreate({ pickup, destination, vehicleType: type, passengers, idempotencyKey: requestKey.current.id, quoteToken: quote.quote.token });
     }}>{busy ? "ИЗПРАЩАНЕ…" : "ИЗПРАТИ ЗАЯВКА"}</Button>
-    <p className="pilotNote">За теста използваме зададена цена за категорията. Изчисляването според маршрута предстои.</p>
+    <p className="pilotNote">Цената се запазва към заявката. При промяна на маршрута или категорията се изчислява нова оценка.</p>
   </>;
 }
 

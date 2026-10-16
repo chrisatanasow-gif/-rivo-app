@@ -5,6 +5,13 @@ import AdminApp from "./apps/AdminApp";
 import { Toast } from "./components/UI";
 import { load, save } from "./lib/storage";
 import PilotApp from "./apps/PilotApp";
+import { DEFAULT_TARIFFS, calculateFare } from "../shared/fare.js";
+
+function loadTariffs() {
+  const stored = load("rivoTariffsV1", DEFAULT_TARIFFS);
+  try { calculateFare(1000, "city", stored); calculateFare(1000, "premium", stored); return stored; }
+  catch { return DEFAULT_TARIFFS; }
+}
 
 export default function App() {
   return window.location.pathname.replace(/\/$/, "") === "/pilot" ? <PilotApp/> : <PrototypeApp/>;
@@ -12,12 +19,12 @@ export default function App() {
 
 function PrototypeApp() {
   const [mode, setMode] = useState("customer");
-  const [pricing, setPricingState] = useState(() => load("rivoPricing", { city: 26, premium: 34 }));
+  const [tariffs, setTariffsState] = useState(loadTariffs);
   const [message, setMessage] = useState("");
 
-  const setPricing = (next) => {
-    setPricingState(next);
-    save("rivoPricing", next);
+  const setTariffs = (next) => {
+    setTariffsState(next);
+    save("rivoTariffsV1", next);
   };
 
   const toast = (text) => {
@@ -29,9 +36,9 @@ function PrototypeApp() {
   return (
     <div className="shell">
       <div className="app">
-        {mode === "customer" && <CustomerApp pricing={pricing} openDriver={() => setMode("driver")} openAdmin={() => setMode("admin")} toast={toast}/>}
-        {mode === "driver" && <DriverApp close={() => setMode("customer")} toast={toast}/>}
-        {mode === "admin" && <AdminApp close={() => setMode("customer")} pricing={pricing} setPricing={setPricing} toast={toast}/>}
+        {mode === "customer" && <CustomerApp tariffs={tariffs} openDriver={() => setMode("driver")} openAdmin={() => setMode("admin")} toast={toast}/>}
+        {mode === "driver" && <DriverApp close={() => setMode("customer")} tariffs={tariffs} toast={toast}/>}
+        {mode === "admin" && <AdminApp close={() => setMode("customer")} tariffs={tariffs} setTariffs={setTariffs} toast={toast}/>}
         <Toast message={message}/>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-
-export const PILOT_PRICES = Object.freeze({ city: 2600, premium: 3400 });
+import { DEFAULT_TARIFFS } from "../shared/fare.js";
+import { getRoadRoute, RouteError } from "./road-route.js";
+import { createFareQuotes, QuoteError } from "./fare-quote.js";
 const COOKIE = "rivo_pilot_session";
 const ACTIVE = ["waiting", "accepted", "arrived", "in_progress"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -30,7 +31,7 @@ function location(value, label) {
 }
 
 function vehicleType(value) {
-  if (!Object.hasOwn(PILOT_PRICES, value)) throw new PilotError(400, "Избери категория автомобил.");
+  if (!Object.hasOwn(DEFAULT_TARIFFS, value)) throw new PilotError(400, "Избери категория автомобил.");
   return value;
 }
 
@@ -45,7 +46,7 @@ function ride(row) {
   return {
     id: row.id, status: row.status, revision: row.revision,
     pickup: row.pickup, destination: row.destination, vehicleType: row.vehicle_type,
-    passengers: row.passengers, priceCents: row.price_cents, currency: "EUR",
+    passengers: row.passengers, priceCents: row.price_cents, currency: "EUR", fare: row.fare_quote || null,
     customerName: row.customer_name,
     driver: row.driver_id ? { name: row.driver_name, vehicleModel: row.driver_model, vehiclePlate: row.driver_plate } : null,
     createdAt: row.created_at, updatedAt: row.updated_at, expiresAt: row.expires_at
@@ -83,8 +84,9 @@ async function readBody(req) {
   return body;
 }
 
-export function createPilotHandler({ query, accessCode, secureCookies = true, reportError = error => console.error("RIVO pilot API", error.code || error.name) }) {
+export function createPilotHandler({ query, accessCode, secureCookies = true, resolveRoute = getRoadRoute, now, reportError = error => console.error("RIVO pilot API", error.code || error.name) }) {
   const gateHash = hash(accessCode || "");
+  const quotes = createFareQuotes({ query, resolveRoute, now });
   const cookie = (token, age = 86400) => `${COOKIE}=${token}; Path=/api/pilot; HttpOnly; SameSite=Strict; Max-Age=${age}${secureCookies ? "; Secure" : ""}`;
 
   async function sessionFor(req) {
@@ -146,12 +148,21 @@ export function createPilotHandler({ query, accessCode, secureCookies = true, re
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now() + interval '24 hours') RETURNING *`,
         [randomUUID(), hash(token), gateHash, body.role, name, type, model, plate]);
         res.setHeader("Set-Cookie", cookie(token));
-        return send(200, { participant: participant(rows[0]), prices: PILOT_PRICES });
+        return send(200, { participant: participant(rows[0]), tariffs: DEFAULT_TARIFFS });
       }
 
       const session = await sessionFor(req);
-      if (action === "session" && req.method === "GET") return send(200, { participant: session ? participant(session) : null, prices: PILOT_PRICES });
+      if (action === "session" && req.method === "GET") return send(200, { participant: session ? participant(session) : null, tariffs: DEFAULT_TARIFFS });
       if (!session) throw new PilotError(401, "Влез отново във вътрешния тест.", "SESSION_REQUIRED");
+
+      if (action === "quote" && req.method === "POST") {
+        if (session.role !== "customer") throw new PilotError(403, "Само пътник може да изчисли цена за заявка.");
+        const pickup = location(body.pickup, "взимане");
+        const destination = location(body.destination, "дестинацията");
+        const type = vehicleType(body.vehicleType);
+        const quote = await quotes.issue({ sessionId: session.id, pickup, destination, vehicleType: type });
+        return send(200, { quote });
+      }
 
       if (action === "logout" && req.method === "POST") {
         const active = await query(`SELECT id FROM rivo_pilot_rides WHERE ${session.role === "customer" ? "customer_id" : "driver_id"} = $1 AND status = ANY($2::text[]) LIMIT 1`, [session.id, ACTIVE]);
@@ -167,7 +178,7 @@ export function createPilotHandler({ query, accessCode, secureCookies = true, re
         const active = mine.find(row => ACTIVE.includes(row.status));
         const available = session.role === "driver" && !active
           ? await query(`${SELECT_RIDES} WHERE r.status = 'waiting' AND r.expires_at > now() AND r.vehicle_type = $1 ORDER BY r.created_at LIMIT 20`, [session.vehicle_type]) : [];
-        return send(200, { participant: participant(session), prices: PILOT_PRICES, activeRide: active ? ride(active) : null, rides: mine.map(ride), requests: available.map(ride) });
+        return send(200, { participant: participant(session), tariffs: DEFAULT_TARIFFS, activeRide: active ? ride(active) : null, rides: mine.map(ride), requests: available.map(ride) });
       }
 
       if (action === "create" && req.method === "POST") {
@@ -179,11 +190,12 @@ export function createPilotHandler({ query, accessCode, secureCookies = true, re
         const destination = location(body.destination, "дестинацията");
         const type = vehicleType(body.vehicleType);
         if (!Number.isInteger(body.passengers) || body.passengers < 1 || body.passengers > 4) throw new PilotError(400, "Пътниците трябва да са между 1 и 4.");
+        const fare = await quotes.verify(body.quoteToken, { sessionId: session.id, pickup, destination, vehicleType: type });
         const rows = await query(`INSERT INTO rivo_pilot_rides
-          (id, customer_id, idempotency_key, pickup, destination, vehicle_type, passengers, price_cents)
-          VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, $8)
+          (id, customer_id, idempotency_key, pickup, destination, vehicle_type, passengers, price_cents, fare_quote)
+          VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, $8, $9::jsonb)
           ON CONFLICT (customer_id, idempotency_key) DO UPDATE SET idempotency_key = EXCLUDED.idempotency_key RETURNING id`,
-        [randomUUID(), session.id, body.idempotencyKey, JSON.stringify(pickup), JSON.stringify(destination), type, body.passengers, PILOT_PRICES[type]]);
+        [randomUUID(), session.id, body.idempotencyKey, JSON.stringify(pickup), JSON.stringify(destination), type, body.passengers, fare.priceCents, JSON.stringify(fare)]);
         return send(201, { ride: ride(await getRide(rows[0].id)) });
       }
 
@@ -209,7 +221,7 @@ export function createPilotHandler({ query, accessCode, secureCookies = true, re
 
       throw new PilotError(404, "Действието не е намерено.");
     } catch (error) {
-      if (error instanceof PilotError) return send(error.status, { error: error.message, code: error.code });
+      if (error instanceof PilotError || error instanceof QuoteError || error instanceof RouteError) return send(error.status, { error: error.message, code: error.code });
       if (error.code === "23505") return send(409, { error: "Вече има активна заявка за този участник. Обнови списъка.", code: "RIDE_CONFLICT" });
       if (error.code === "42P01") return send(503, { error: "Вътрешният тест още не е активиран. Свържи се с екипа на RIVO.", code: "SCHEMA_NOT_READY" });
       reportError(error);

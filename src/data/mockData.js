@@ -5,7 +5,6 @@ export const vehicles = {
     model: "Audi A1",
     detail: "Градски курс · до 4 места",
     eta: 3,
-    defaultPrice: 26,
     image: "/assets/audi.webp"
   },
   premium: {
@@ -14,7 +13,6 @@ export const vehicles = {
     model: "BMW 530d Touring",
     detail: "Комфорт · багаж · до 4 места",
     eta: 6,
-    defaultPrice: 34,
     image: "/assets/bmw.webp"
   }
 };

@@ -70,3 +70,75 @@ test("cancellation reaches the driver and a temporary API failure has a visible 
   await customerContext.close();
   await driverContext.close();
 });
+
+test("route and category change the quote and preserve the same fare for both participants", async ({ browser }) => {
+  const customerContext = await browser.newContext();
+  const driverContext = await browser.newContext();
+  const customer = await customerContext.newPage();
+  const driver = await driverContext.newPage();
+  const name = `Цени Тест ${Date.now()}`;
+  await login(customer, "customer", name);
+  await login(driver, "driver", "Шофьор Цени");
+  await expect(customer.getByTestId("fare-total")).toBeVisible();
+  const shortPrice = await customer.getByTestId("fare-total").innerText();
+  const nextQuote = () => customer.waitForResponse(response => response.url().includes("action=quote") && response.request().method() === "POST");
+  const longResponse = nextQuote();
+  await customer.getByLabel("Дестинация", { exact: true }).selectOption("София, Център");
+  await expect(customer.getByRole("button", { name: "ИЗПРАТИ ЗАЯВКА" })).toBeDisabled();
+  const longQuote = (await (await longResponse).json()).quote;
+  await expect(customer.getByTestId("fare-total")).not.toHaveText(shortPrice);
+  const premiumResponse = nextQuote();
+  await customer.getByRole("combobox", { name: "Автомобил", exact: true }).selectOption("premium");
+  const premiumQuote = (await (await premiumResponse).json()).quote;
+  expect(premiumQuote.priceCents).toBeGreaterThan(longQuote.priceCents);
+  const cityResponse = nextQuote();
+  await customer.getByRole("combobox", { name: "Автомобил", exact: true }).selectOption("city");
+  const cityQuote = (await (await cityResponse).json()).quote;
+  await expect(customer.getByRole("button", { name: "ИЗПРАТИ ЗАЯВКА" })).toBeEnabled();
+  const priceText = await customer.getByTestId("fare-total").innerText();
+  const createdResponse = customer.waitForResponse(response => response.url().includes("action=create"));
+  await customer.getByRole("button", { name: "ИЗПРАТИ ЗАЯВКА" }).click();
+  const saved = (await (await createdResponse).json()).ride;
+  expect(saved.priceCents).toBe(cityQuote.priceCents);
+  expect(saved.fare.distanceMeters).toBe(cityQuote.distanceMeters);
+  await driver.locator(".pilotRequest").filter({ hasText: name }).getByRole("button", { name: "ПРИЕМИ ЗАЯВКАТА" }).click();
+  await expect(customer.getByRole("heading", { name: "Шофьорът прие" })).toBeVisible();
+  await expect(driver.locator(".pilotRideHeading .price")).toHaveText(priceText);
+  await expect(customer.locator(".pilotRideHeading .price")).toHaveText(priceText);
+  await customer.reload();
+  await expect(customer.locator(".pilotRideHeading .price")).toHaveText(priceText);
+  await customer.getByRole("button", { name: "ОТКАЖИ ЗАЯВКАТА" }).click();
+  await expect(driver.getByRole("heading", { name: "Готов за заявка" })).toBeVisible();
+  await customerContext.close();
+  await driverContext.close();
+});
+
+test("quote failure hides the price and blocks submission until a successful retry", async ({ browser }) => {
+  const context = await browser.newContext();
+  const customer = await context.newPage();
+  await customer.route("**/api/pilot?action=quote", route => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Маршрутът временно не е наличен." }) }));
+  await login(customer, "customer", "Тест Маршрут");
+  await expect(customer.getByText("Маршрутът временно не е наличен.", { exact: false })).toBeVisible();
+  await expect(customer.getByTestId("fare-total")).toHaveCount(0);
+  await expect(customer.getByRole("button", { name: "ИЗПРАТИ ЗАЯВКА" })).toBeDisabled();
+  await customer.unroute("**/api/pilot?action=quote");
+  await customer.getByRole("button", { name: "Изчисли отново" }).click();
+  await expect(customer.getByTestId("fare-total")).toBeVisible();
+  await expect(customer.getByRole("button", { name: "ИЗПРАТИ ЗАЯВКА" })).toBeEnabled();
+  await context.close();
+});
+
+test("the main design uses road distance and ignores old fixed-price storage", async ({ browser }) => {
+  const context = await browser.newContext();
+  await context.addInitScript(() => localStorage.setItem("rivoPricing", JSON.stringify({ city: 999, premium: 999 })));
+  const page = await context.newPage();
+  await page.route("https://router.project-osrm.org/**", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ code: "Ok", routes: [{ distance: 35000, duration: 2400, geometry: { type: "LineString", coordinates: [[23.0379, 42.6052], [23.3219, 42.6977]] } }] }) }));
+  await page.goto("/");
+  await page.getByRole("button", { name: "Работа", exact: true }).click();
+  await page.getByRole("button", { name: "ПРОДЪЛЖИ", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Избери автомобил" })).toBeVisible();
+  await expect(page.locator(".rideCard").filter({ hasText: "RIVO CITY" }).locator(".price")).toHaveText(/25,50/);
+  await expect(page.locator(".rideCard").filter({ hasText: "RIVO PREMIUM" }).locator(".price")).toHaveText(/36,50/);
+  await expect(page.getByRole("button", { name: /ПРЕГЛЕДАЙ КУРСА/ })).toBeEnabled();
+  await context.close();
+});

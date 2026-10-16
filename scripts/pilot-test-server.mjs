@@ -9,7 +9,11 @@ const db = new PGlite();
 await db.exec(await readFile(new URL("../server/pilot-schema.sql", import.meta.url), "utf8"));
 const handle = createPilotHandler({
   query: async (statement, parameters) => (await db.query(statement, parameters)).rows,
-  accessCode: "rivo-local-test-invitation", secureCookies: false
+  accessCode: "rivo-local-test-invitation", secureCookies: false,
+  // Deterministic road-provider fixtures for offline browser tests only.
+  resolveRoute: async (_pickup, destination) => destination.lat > 42.65
+    ? { distanceMeters: 35000, durationSeconds: 2400, routeSource: "test-fixture" }
+    : { distanceMeters: 1800, durationSeconds: 300, routeSource: "test-fixture" }
 });
 const root = resolve("dist");
 const types = { ".js": "application/javascript", ".css": "text/css", ".html": "text/html", ".png": "image/png", ".webp": "image/webp", ".webmanifest": "application/manifest+json" };
