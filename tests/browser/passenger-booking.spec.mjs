@@ -57,8 +57,21 @@ for (const [width, height] of [[320, 568], [360, 640], [390, 844], [430, 932]]) 
     await page.getByRole("button", { name: /ПРЕГЛЕДАЙ КУРСА/ }).click();
     await page.getByRole("button", { name: "ПОРЪЧАЙ RIVO", exact: true }).click();
     await expect(page.locator(".pickupSummary")).toContainText("ул. „Кракра“ 10");
-    await page.getByRole("button", { name: "ДЕМО: ШОФЬОРЪТ ПРИСТИГНА" }).click();
+    await page.getByRole("button", { name: /ДЕМО: (ШОФЬОРЪТ ПРИСТИГНА|ЗАПОЧНИ ПЪТУВАНЕТО)/ }).click();
+    if (await page.locator(".customerArrival").count()) await page.getByRole("button", { name: "ДЕМО: ЗАПОЧНИ ПЪТУВАНЕТО" }).click();
     await expect(page.locator(".activeTripCard .price")).toHaveText(/6,60/);
+    await assertPinned(page, "ДЕМО: ЗАВЪРШИ ПЪТУВАНЕТО");
+    await page.getByRole("button", { name: "ДЕМО: ЗАВЪРШИ ПЪТУВАНЕТО" }).click();
+    await expect(page.locator(".receiptRow.total strong")).toHaveText(/6,60/);
+    await assertPinned(page, "ГОТОВО");
+    await page.getByRole("button", { name: "2 звезди", exact: true }).click();
+    await expect(page.getByRole("button", { name: "2 звезди", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "+2 €", exact: true }).click();
+    await expect(page.locator(".receiptRow.total strong")).toHaveText(/8,60/);
+    await page.getByRole("button", { name: "ГОТОВО", exact: true }).click();
+    await expect(page.locator(".homeContent")).toBeVisible();
+    await page.getByRole("button", { name: "K", exact: true }).click();
+    await expect(page.locator(".historyRow").first()).toContainText(/8,60/);
   });
 }
 
@@ -88,6 +101,61 @@ test("an older address search cannot replace newer results or a saved place", as
   await page.getByRole("button", { name: "Дом Перник, Изток" }).click();
   await expect(destination).toHaveValue("Перник, Изток");
   await expect(page.getByRole("group", { name: "Резултати от търсене" })).toHaveCount(0);
+});
+
+test("arrival is separate from trip start and cancellation follows the current stage", async ({ page }) => {
+  await fixtures(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Работа", exact: true }).click();
+  await page.getByRole("button", { name: "ПРОДЪЛЖИ", exact: true }).click();
+  await page.getByRole("button", { name: /ПРЕГЛЕДАЙ КУРСА/ }).click();
+  await page.getByRole("button", { name: "ПОРЪЧАЙ RIVO", exact: true }).click();
+  await expect(page.locator(".customerMatching")).toContainText("ЗАЯВКАТА Е ИЗПРАТЕНА");
+  await expect(page.locator(".arrivalStatus")).toHaveText("ШОФЬОРЪТ ИДВА");
+  await assertPinned(page, "ДЕМО: ШОФЬОРЪТ ПРИСТИГНА");
+  await page.getByRole("button", { name: "Откажи курса", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Отказваш курса?" });
+  await expect(dialog).toContainText("Шофьорът е на път към теб.");
+  await expect(dialog.getByRole("button", { name: "Запази курса" })).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(dialog.getByRole("button", { name: "Откажи курса" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(dialog.getByRole("button", { name: "Запази курса" })).toBeFocused();
+  await expect(dialog).toContainText("Шофьорът те чака на мястото за взимане.");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Откажи курса", exact: true })).toBeFocused();
+  await expect(page.locator(".arrivalStatus")).toHaveText("ШОФЬОРЪТ ПРИСТИГНА");
+  await expect(page.locator(".customerTrip")).toHaveCount(0);
+  await assertPinned(page, "ДЕМО: ЗАПОЧНИ ПЪТУВАНЕТО");
+  await page.getByRole("button", { name: "Откажи курса", exact: true }).click();
+  await dialog.getByRole("button", { name: "Откажи курса" }).click();
+  await expect(page.locator(".homeContent")).toBeVisible();
+});
+
+test("remaining time uses the route and a new trip resets the rating and tip", async ({ page }) => {
+  await fixtures(page);
+  await page.route("https://router.project-osrm.org/**", route => route.fulfill({ json: { code: "Ok", routes: [{ distance: 35000, duration: 2400, geometry: { type: "LineString", coordinates: [[23.0334, 42.6019], [23.3219, 42.6977]] } }] } }));
+  await page.goto("/");
+  for (let trip = 0; trip < 2; trip++) {
+    await page.getByRole("button", { name: "Работа", exact: true }).click();
+    await page.getByRole("button", { name: "ПРОДЪЛЖИ", exact: true }).click();
+    await page.getByRole("button", { name: /ПРЕГЛЕДАЙ КУРСА/ }).click();
+    await page.getByRole("button", { name: "ПОРЪЧАЙ RIVO", exact: true }).click();
+    await page.getByRole("button", { name: "ДЕМО: ШОФЬОРЪТ ПРИСТИГНА" }).click();
+    await expect(page.locator(".customerArrival")).toBeVisible();
+    await page.getByRole("button", { name: "ДЕМО: ЗАПОЧНИ ПЪТУВАНЕТО" }).click();
+    const heading = await page.locator(".customerTrip h1").innerText();
+    expect(Number(heading.match(/\d+/)[0])).toBeGreaterThan(25);
+    await expect(page.locator(".activeTripCard .price")).toHaveText(/25,50/);
+    await page.getByRole("button", { name: "ДЕМО: ЗАВЪРШИ ПЪТУВАНЕТО" }).click();
+    await expect(page.getByRole("button", { name: "5 звезди", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: "Без бакшиш", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".receiptRow.total strong")).toHaveText(/25,50/);
+    await page.getByRole("button", { name: "1 звезда", exact: true }).click();
+    await page.getByRole("button", { name: "+5 €", exact: true }).click();
+    await page.getByRole("button", { name: "ГОТОВО", exact: true }).click();
+  }
 });
 
 test("late GPS and map lookups preserve the passenger's newer choices", async ({ page }) => {

@@ -50,12 +50,47 @@ function Stepper({ value, onChange }) {
   return <div className="stepper"><button aria-label="Намали пътниците" disabled={value === 1} onClick={() => onChange(value - 1)}>−</button><b aria-live="polite">{value} {value === 1 ? "пътник" : "пътници"}</b><button aria-label="Добави пътник" disabled={value === 4} onClick={() => onChange(value + 1)}>+</button></div>;
 }
 
-function BookingScreen({ title, onBack, className = "", actions, children }) {
-  return <section className={`customerBooking ${className}`} aria-label="Поръчка на RIVO">
-    <Header title={title} onBack={onBack}/>
-    <main className="content customerContent">{children}</main>
-    <footer className="customerActions">{actions}</footer>
+function CustomerScreen({ title, onBack, logo = false, right, centered = false, className = "", actions, overlay, children }) {
+  return <section className={`customerBooking ${className}`} aria-label="Пътническо приложение">
+    <Header title={title} onBack={onBack} logo={logo} right={right}/>
+    <main className={`content customerContent ${centered ? "centered" : ""}`}>{children}</main>
+    {actions && <footer className="customerActions">{actions}</footer>}
+    {overlay}
   </section>;
+}
+
+function CancelRideDialog({ arrived, onKeep, onCancel }) {
+  const dialogRef = useRef(null);
+  const onKeepRef = useRef(onKeep);
+  onKeepRef.current = onKeep;
+
+  useEffect(() => {
+    const previousFocus = document.activeElement;
+    const dialog = dialogRef.current;
+    dialog.querySelector("button").focus();
+    const handleKey = event => {
+      if (event.key === "Escape") { event.preventDefault(); onKeepRef.current(); }
+      if (event.key !== "Tab") return;
+      const buttons = [...dialog.querySelectorAll("button")];
+      const first = buttons[0];
+      const last = buttons.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    dialog.addEventListener("keydown", handleKey);
+    return () => {
+      dialog.removeEventListener("keydown", handleKey);
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, []);
+
+  return <div ref={dialogRef} className="cancelOverlay" role="dialog" aria-modal="true" aria-labelledby="cancelTitle" aria-describedby="cancelDescription">
+    <div className="cancelPanel">
+      <div className="cancelIcon"><AlertCircle size={20} strokeWidth={1.8}/></div>
+      <div><h2 id="cancelTitle">Отказваш курса?</h2><p id="cancelDescription" className="muted">{arrived ? "Шофьорът те чака на мястото за взимане." : "Шофьорът е на път към теб."}</p></div>
+      <div className="cancelActions"><Button secondary onClick={onKeep}>Запази курса</Button><button className="cancelConfirm" onClick={onCancel}>Откажи курса</button></div>
+    </div>
+  </div>;
 }
 
 function AddressField({ field, location, active, onFocus, onChange, onSearch, searching, suggestions, activeOption, onKeyDown }) {
@@ -121,7 +156,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   const [addressStatus, setAddressStatus] = useState("idle");
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [eta, setEta] = useState(vehicles.rivo.eta);
-  const [tripProgress, setTripProgress] = useState(18);
+  const [tripProgress, setTripProgress] = useState(0);
   const [rating, setRating] = useState(5);
   const [tip, setTip] = useState(0);
   const [passengers, setPassengers] = useState(1);
@@ -146,6 +181,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   const price = priceCents / 100;
   const arrivingDriverProgress = selected.eta ? 1 - (eta / selected.eta) : 1;
   const tripDriverProgress = tripProgress / 100;
+  const remainingTripMinutes = currentRoute ? Math.max(1, Math.ceil(currentRoute.durationMinutes * (1 - tripDriverProgress))) : null;
 
   useEffect(() => {
     let active = true;
@@ -347,6 +383,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
     setHistory([]);
     setScreen("home");
     setTip(0);
+    setRating(5);
     setBookedFare(null);
   };
 
@@ -384,7 +421,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
 
   useEffect(() => {
     if (screen !== "trip") return;
-    setTripProgress(18);
+    setTripProgress(0);
     const id = setInterval(() => setTripProgress(v => Math.min(92, v + 6)), 1000);
     return () => clearInterval(id);
   }, [screen]);
@@ -405,7 +442,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   );
 
   if (screen === "destination") return (
-    <BookingScreen title="Маршрут" onBack={back} className="customerRoute" actions={<>
+    <CustomerScreen title="Маршрут" onBack={back} className="customerRoute" actions={<>
       <p className="customerActionHint" role="status">{addressStatus === "loading" ? "Разпознаваме избраната точка…" : canContinue ? "Адресите са избрани. Следва цена за маршрута." : "Потърси адрес и избери резултат или точка на картата."}</p>
       <Button onClick={() => go("rides")} disabled={!canContinue}>ПРОДЪЛЖИ</Button>
     </>}>
@@ -422,11 +459,11 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
         <div className="savedPlaceList">{savedPlaces.map(({ name, location, icon }) => <button key={name} className="place" onClick={() => selectSearchResult(location)}><span className="placeIcon"><PlaceIcon icon={icon}/></span><span><b>{name}</b><small>{location.label}</small></span><ChevronRight className="cardChevron" size={19} strokeWidth={1.8}/></button>)}</div>
         <div className="eyebrow">ПОСЛЕДНИ</div>
         <div className="savedPlaceList">{recentLocations.slice(0, 2).map(location => <button className="place" key={location.label} onClick={() => selectSearchResult(location)}><span className="placeIcon"><History className="placeGlyph" size={18} strokeWidth={1.8}/></span><span><b>{location.label}</b><small>{location.detail}</small></span><ChevronRight className="cardChevron" size={19} strokeWidth={1.8}/></button>)}</div>
-    </BookingScreen>
+    </CustomerScreen>
   );
 
   if (screen === "rides") return (
-    <BookingScreen title="Твоят RIVO" onBack={back} actions={<Button disabled={!fare} onClick={() => go("confirm")}>ПРЕГЛЕДАЙ КУРСА{fare ? ` · ${formatMoney(fare.priceCents)}` : ""}</Button>}>
+    <CustomerScreen title="Твоят RIVO" onBack={back} actions={<Button disabled={!fare} onClick={() => go("confirm")}>ПРЕГЛЕДАЙ КУРСА{fare ? ` · ${formatMoney(fare.priceCents)}` : ""}</Button>}>
         <div><span className="eyebrow">СТЪПКА 2 ОТ 3</span><h1>Детайли за курса</h1><p className="muted">Предварителна оценка според автомобилния маршрут.</p></div>
         <RouteSummary pickup={pickup} destination={destination} route={currentRoute} timing={timing} passengers={passengers} luggage={luggage} payment={payment}/>
         <div className="rideChoices"><Card className="rideCard selected">
@@ -438,11 +475,11 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
         {!fare && <p className="muted" role="status">{currentRoute?.isFallback ? "Маршрутът временно не е наличен. Не можем да изчислим цена." : "Изчисляваме маршрута и цената…"}</p>}
         {currentRoute?.isFallback && <Button secondary onClick={() => setRouteAttempt(value => value + 1)}>ИЗЧИСЛИ ОТНОВО</Button>}
         <BookingDetails timing={timing} setTiming={setTiming} passengers={passengers} setPassengers={setPassengers} luggage={luggage} setLuggage={setLuggage} payment={payment} setPayment={setPayment} toast={toast}/>
-    </BookingScreen>
+    </CustomerScreen>
   );
 
   if (screen === "confirm") return (
-    <BookingScreen title="Потвърди курса" onBack={back} className="customerConfirm" actions={<>
+    <CustomerScreen title="Потвърди курса" onBack={back} className="customerConfirm" actions={<>
       <Button disabled={!fare} onClick={() => { setBookedFare(fare); setScreen("matching"); }}>ПОРЪЧАЙ {selected.label}</Button>
       <button className="quietAction" onClick={back}>Промени детайлите</button>
     </>}>
@@ -451,60 +488,47 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
         <Card className="confirmVehicle"><div><span className="eyebrow">ТВОЯТА УСЛУГА</span><h2>{selected.label}</h2><small>{selected.model} · до 4 места</small></div><VehicleImage src={selected.image} alt={selected.model} compact/></Card>
         <Card className="priceSummary"><span><small>ПРЕДВАРИТЕЛНА ОЦЕНКА</small><b>Общо за курса</b></span><strong>{fare ? formatMoney(fare.priceCents) : "Изчисляваме…"}</strong></Card>
         <FareBreakdown fare={fare}/>
-    </BookingScreen>
+    </CustomerScreen>
   );
 
   if (screen === "matching") return (
-    <>
-      <Header logo right={<Pill live>RIVO MATCH</Pill>}/>
-        <main className="content customerContent centered matchingContent">
+    <CustomerScreen logo right={<Pill live>RIVO MATCH</Pill>} className="customerRide customerMatching" centered>
         <div className="matchingVisual"><LoaderCircle size={30} strokeWidth={1.7}/></div>
-        <div><span className="eyebrow">КУРСЪТ Е ПОТВЪРДЕН</span><h1>Търсим най-близкия RIVO…</h1><p className="muted">Свързваме те с подходящия автомобил.</p></div>
+        <div><span className="eyebrow">ЗАЯВКАТА Е ИЗПРАТЕНА</span><h1>Търсим най-близкия RIVO…</h1><p className="muted">Изчакваме шофьор да приеме курса.</p></div>
         <RivoMap pickup={pickup} destination={destination} route={route}/>
-        <div className="spacer"/>
-      </main>
-    </>
+    </CustomerScreen>
   );
 
   if (screen === "arriving") return (
-    <>
-      <Header logo right={<span className="arrivalStatus" role="status"><Pill live>{eta ? "ШОФЬОРЪТ ИДВА" : "ШОФЬОРЪТ ПРИСТИГНА"}</Pill></span>}/>
-        <main className="content customerContent">
+    <CustomerScreen logo right={<span className="arrivalStatus" role="status"><Pill live>{eta ? "ШОФЬОРЪТ ИДВА" : "ШОФЬОРЪТ ПРИСТИГНА"}</Pill></span>} className="customerRide customerArrival" actions={<>
+      <p className="customerActionHint">{eta ? "Шофьорът е на път към мястото за взимане." : "Шофьорът те чака на избрания адрес."}</p>
+      {eta ? <Button secondary onClick={() => setEta(0)}>ДЕМО: ШОФЬОРЪТ ПРИСТИГНА</Button> : <Button onClick={() => setScreen("trip")}>ДЕМО: ЗАПОЧНИ ПЪТУВАНЕТО</Button>}
+      <button className="quietAction" onClick={() => setCancelOpen(true)}>Откажи курса</button>
+    </>} overlay={cancelOpen && <CancelRideDialog arrived={eta === 0} onKeep={() => setCancelOpen(false)} onCancel={() => { setCancelOpen(false); setHistory([]); setBookedFare(null); setScreen("home"); }}/> }>
         <div className="statusHeader"><div><span className="eyebrow">КУРСЪТ Е ПОТВЪРДЕН</span><h1>{eta ? `Идва след ${eta} мин` : "Шофьорът пристигна"}</h1><p className="muted">{selected.model} · {selected.label}</p></div><span className="liveDot"/></div>
         <RivoMap pickup={pickup} destination={null} route={driverRoute} driverProgress={arrivingDriverProgress} frameProgress="to-pickup"/>
-        <Card className="driverProfile"><div className="driverAvatar">И</div><div className="grow"><b>Иван Петров</b><small>★ 4.9 · 248 курса</small><small>{selected.model} · CB 5237 MK</small></div><div className="actions"><button aria-label="Обади се на Иван" onClick={() => toast("Обаждане към Иван…")}><Phone size={17} strokeWidth={1.8}/></button><button aria-label="Отвори чат" onClick={() => toast("Отваряме чат…")}><MessageCircle size={17} strokeWidth={1.8}/></button></div></Card>
+        <Card className="driverProfile"><div className="driverAvatar">И</div><div className="grow"><b>Иван Петров</b><small>★ 4.9 · 248 курса</small><small>{selected.model} · CB 5237 MK</small></div><div className="actions"><button aria-label="Обади се на Иван" onClick={() => toast("Обажданията предстоят в тестовата версия.")}><Phone size={17} strokeWidth={1.8}/></button><button aria-label="Отвори чат" onClick={() => toast("Чатът предстои в тестовата версия.")}><MessageCircle size={17} strokeWidth={1.8}/></button></div></Card>
         <Card className="pickupSummary"><span><small>ВЗИМАНЕ</small><b>{locationLabel(pickup)}</b></span><Pill live>{eta ? "НА ПЪТ" : "ПРИСТИГНА"}</Pill></Card>
-        <div className="twoCols"><Button secondary onClick={() => toast("Курсът е споделен")}><Share2 size={15} strokeWidth={1.8}/> Сподели</Button><Button secondary onClick={() => toast("RIVO Safety е активен")}><ShieldCheck size={15} strokeWidth={1.8}/> Safety</Button></div>
-        {cancelOpen && <div className="cancelOverlay" role="dialog" aria-modal="true" aria-labelledby="cancelTitle"><div className="cancelPanel"><div className="cancelIcon"><AlertCircle size={20} strokeWidth={1.8}/></div><div><h2 id="cancelTitle">Отказваш курса?</h2><p className="muted">Шофьорът вече е на път към теб.</p></div><div className="cancelActions"><Button secondary onClick={() => setCancelOpen(false)}>Продължи курса</Button><button className="cancelConfirm" onClick={() => { setCancelOpen(false); setHistory([]); setBookedFare(null); setScreen("home"); }}>Откажи курса</button></div></div></div>}
-        <div className="spacer"/><Button onClick={() => setScreen("trip")}>ДЕМО: ШОФЬОРЪТ ПРИСТИГНА</Button><button className="quietAction" onClick={() => setCancelOpen(true)}>Откажи курса</button>
-      </main>
-    </>
+        <div className="twoCols"><Button secondary onClick={() => toast("Споделянето на курса предстои.")}><Share2 size={15} strokeWidth={1.8}/> Сподели</Button><Button secondary onClick={() => toast("Функциите за безопасност предстоят.")}><ShieldCheck size={15} strokeWidth={1.8}/> Сигурност</Button></div>
+    </CustomerScreen>
   );
 
   if (screen === "trip") return (
-    <>
-      <Header logo right={<Pill live>В ПЪТУВАНЕ</Pill>}/>
-        <main className="content customerContent">
-        <div className="statusHeader"><div><span className="eyebrow">{selected.label} · В ПЪТ</span><h1>{Math.max(1, 16 - Math.floor(tripProgress / 7))} мин до {locationLabel(destination).split(",")[0]}</h1><p className="muted">Пристигаме спокойно и навреме.</p></div><span className="liveDot"/></div>
+    <CustomerScreen logo right={<Pill live>В ПЪТУВАНЕ</Pill>} className="customerRide customerTrip" actions={<Button onClick={completeTrip}>ДЕМО: ЗАВЪРШИ ПЪТУВАНЕТО</Button>}>
+        <div className="statusHeader"><div><span className="eyebrow">{selected.label} · В ПЪТ</span><h1>{remainingTripMinutes ? `Около ${remainingTripMinutes} мин до ${locationLabel(destination)}` : `Към ${locationLabel(destination)}`}</h1><p className="muted">Оставащото време е оценка по маршрута.</p></div><span className="liveDot"/></div>
         <RivoMap pickup={pickup} destination={destination} route={route} driverProgress={tripDriverProgress} frameProgress="remaining"/><div className="progress"><i style={{width:`${tripProgress}%`}}/></div>
         <Card className="activeTripCard"><div className="driverAvatar">И</div><span className="grow"><b>Иван Петров</b><small>{selected.model} · CB 5237 MK</small></span><strong className="price">{formatMoney(priceCents)}</strong></Card>
         <Card className="routeSummary compactSummary"><div className="summaryLine"><span className="dot"/><span><small>ПРИСТИГАНЕ</small><b>{locationLabel(destination)}</b></span></div><div className="summaryMeta"><span>{route ? `${route.distanceKm.toFixed(1)} км · ${route.durationMinutes} мин` : "Маршрутът се изчислява"}</span><span>{passengers} {passengers === 1 ? "пътник" : "пътници"}</span><span>{luggage ? "С багаж" : "Без багаж"}</span><span>{payment === "cash" ? "Кеш" : "Visa"}</span></div></Card>
-        <div className="spacer"/><Button onClick={completeTrip}>ДЕМО: ЗАВЪРШИ ПЪТУВАНЕТО</Button>
-      </main>
-    </>
+    </CustomerScreen>
   );
 
   if (screen === "complete") return (
-    <>
-      <Header logo/>
-        <main className="content customerContent centered">
+    <CustomerScreen logo className="customerRide customerComplete" centered actions={<Button onClick={finishRide}>ГОТОВО</Button>}>
         <div className="check">✓</div><div><span className="eyebrow">КУРСЪТ Е ЗАВЪРШЕН</span><h1>Пристигнахте</h1><p className="muted">Благодарим, че пътувахте с RIVO.</p></div>
         <Card className="receipt"><RideBadge vehicle={selected}/><div className="receiptTop"><span><b>Завършен курс</b></span><strong>{formatMoney(priceCents + tip * 100)}</strong></div><div className="receiptMeta"><span><small>TRIP ID</small><b>{tripId}</b></span><span><small>ДАТА И ЧАС</small><b>{tripDate}</b></span></div><div className="receiptRow"><span>Маршрут</span><b>{locationLabel(pickup).split(",")[0]} → {locationLabel(destination).split(",")[0]}</b></div><div className="receiptRow"><span>Време</span><b>{route ? `${route.durationMinutes} мин · ${route.distanceKm.toFixed(1)} км` : "Маршрутът не е наличен"}</b></div><div className="receiptRow"><span>Плащане</span><b>{payment === "cash" ? "Кеш" : "Visa •••• 4242"}</b></div><div className="receiptRow total"><span>Общо</span><strong>{formatMoney(priceCents + tip * 100)}</strong></div></Card>
-        <div className="ratingBlock"><b>Как беше пътуването?</b><div className="stars">{[1,2,3,4,5].map(n => <button key={n} className={n <= rating ? "" : "off"} onClick={() => setRating(n)}>★</button>)}</div></div>
-        <div className="tipBlock"><span className="eyebrow">БЛАГОДАРИ НА ИВАН</span><div className="tipGrid">{[0,2,5,10].map(n => <button key={n} className={tip === n ? "selected" : ""} onClick={() => setTip(n)}>{n === 0 ? "Без бакшиш" : `+${n} €`}</button>)}</div></div>
-        <div className="spacer"/><Button onClick={finishRide}>ГОТОВО</Button>
-      </main>
-    </>
+        <div className="ratingBlock"><b>Как беше пътуването?</b><div className="stars" role="group" aria-label="Оценка на пътуването">{[1,2,3,4,5].map(n => <button key={n} className={n <= rating ? "" : "off"} aria-label={`${n} ${n === 1 ? "звезда" : "звезди"}`} aria-pressed={n === rating} onClick={() => setRating(n)}>★</button>)}</div></div>
+        <div className="tipBlock"><span className="eyebrow">БЛАГОДАРИ НА ИВАН</span><div className="tipGrid">{[0,2,5,10].map(n => <button key={n} className={tip === n ? "selected" : ""} aria-pressed={tip === n} onClick={() => setTip(n)}>{n === 0 ? "Без бакшиш" : `+${n} €`}</button>)}</div></div>
+    </CustomerScreen>
   );
 
   return (
