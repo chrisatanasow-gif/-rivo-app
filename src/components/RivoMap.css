@@ -1,0 +1,75 @@
+.liveMap {
+  background: #090a0d;
+}
+
+.customerMapWrap .maplibregl-ctrl-bottom-right {
+  top: 0;
+  bottom: auto;
+}
+
+.homeContent .maplibregl-ctrl-bottom-left { bottom: 72px; }
+.homeContent .mapRecenter { bottom: 104px; }
+.homeContent .mapStatus { bottom: 112px; }
+
+.rivoLocationMarker {
+  width: 20px;
+  height: 20px;
+  border: 5px solid #090a0d;
+  border-radius: 50%;
+  background: #ffd400;
+  box-shadow: 0 0 0 9px rgba(255, 212, 0, .1), 0 0 28px rgba(255, 212, 0, .12);
+}
+
+.rivoLocationMarker--pickup {
+  width: 17px;
+  height: 17px;
+  border: 4px solid #090a0d;
+  background: #f6f6f3;
+  box-shadow: 0 0 0 6px rgba(246, 246, 243, .12);
+}
+
+.liveMap .rivoDriverMarker {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 12px;
+  font-size: 17px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, .4), 0 0 0 6px rgba(255, 212, 0, .08);
+}
+
+.map.mapUnavailable {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  background: radial-gradient(circle at 50% 40%, rgba(255, 212, 0, .06), transparent 55%), #090a0d;
+}
+
+.mapUnavailableMark {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  margin-bottom: 6px;
+  background: #ffd400;
+  color: #090a0d;
+  font-weight: 950;
+}
+
+.mapUnavailable b { font-size: 13px; }
+.mapUnavailable small { margin: 0; }
+.mapUnavailable button {
+  min-height: 44px;
+  margin-top: 4px;
+  padding: 10px 14px;
+  border: 1px solid #363943;
+  border-radius: 12px;
+  background: #181a20;
+  color: #ffd400;
+  font-size: 10px;
+  font-weight: 850;
+}
