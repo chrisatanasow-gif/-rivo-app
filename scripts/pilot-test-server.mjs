@@ -4,9 +4,16 @@ import { readFile } from "node:fs/promises";
 import { resolve, extname } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { createPilotHandler } from "../server/pilot-handler.js";
+import { createNotificationsHandler } from "../server/notifications-handler.js";
 
 const db = new PGlite();
 await db.exec(await readFile(new URL("../server/pilot-schema.sql", import.meta.url), "utf8"));
+await db.exec(await readFile(new URL("../server/notifications-schema.sql", import.meta.url), "utf8"));
+const notifications = createNotificationsHandler({
+  query: async (statement, parameters) => (await db.query(statement, parameters)).rows,
+  publicKey: "B" + "A".repeat(86), sendPush: async () => {}, production: false,
+  cronSecret: "local-test-cron-secret"
+});
 const handle = createPilotHandler({
   query: async (statement, parameters) => (await db.query(statement, parameters)).rows,
   accessCode: "rivo-local-test-invitation", secureCookies: false,
@@ -20,6 +27,7 @@ const types = { ".js": "application/javascript", ".css": "text/css", ".html": "t
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
   if (url.pathname === "/api/pilot") return handle(req, res);
+  if (url.pathname === "/api/notifications") return notifications(req, res);
   const path = resolve(root, `.${decodeURIComponent(url.pathname)}`);
   if (path !== root && !path.startsWith(`${root}/`)) { res.writeHead(403); res.end(); return; }
   try {

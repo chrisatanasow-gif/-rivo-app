@@ -29,7 +29,11 @@ export function cleanCustomerProfile(value) {
     priceCents: ride.priceCents, tipCents: ride.tipCents, completedAt: ride.completedAt,
     rating: Number.isInteger(ride.rating) && ride.rating >= 1 && ride.rating <= 5 ? ride.rating : 5,
     passengers: Number.isInteger(ride.passengers) && ride.passengers >= 1 && ride.passengers <= 4 ? ride.passengers : 1,
-    luggage: ride.luggage === true, payment: ride.payment === "card" ? "card" : "cash"
+    luggage: ride.luggage === true, payment: ride.payment === "card" ? "card" : "cash",
+    ...(ride.promotion && /^daily-\d{4}-\d{2}-\d{2}$/.test(ride.promotion.id)
+      && Number.isSafeInteger(ride.discountCents) && ride.discountCents > 0 && ride.discountCents <= 200
+      && Number.isSafeInteger(ride.originalPriceCents) && ride.originalPriceCents === ride.priceCents + ride.discountCents
+      ? { promotion: { id: ride.promotion.id }, discountCents: ride.discountCents, originalPriceCents: ride.originalPriceCents } : {})
   }));
   return result;
 }
