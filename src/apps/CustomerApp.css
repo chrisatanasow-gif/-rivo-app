@@ -3,6 +3,7 @@
 .homeContent .savedPlaces button > div { flex: 1; min-width: 0; }
 .homeContent .savedPlaces button small { margin-top: 4px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .profileBtn { display: grid; place-items: center; }
+.switchCard[href] { color: #fff; text-decoration: none; }
 .customerProfile .profileHero > div { min-width: 0; }
 .customerProfile .profileHero h2 { overflow-wrap: anywhere; }
 .customerProfile .profileHero .avatar { flex: none; }

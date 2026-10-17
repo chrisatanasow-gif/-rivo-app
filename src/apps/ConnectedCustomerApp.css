@@ -1,0 +1,16 @@
+.connectedCustomer .connectedNote { margin: 0; color: #aeb2ba; font-size: 12px; line-height: 1.5; }
+.connectedCustomer .map { width: 100%; height: clamp(220px, 33svh, 310px); min-height: 0; }
+.connectedCustomer .connectedSummary { padding: 12px 14px; overflow-wrap: anywhere; }
+.connectedSummary .summaryLine { padding: 8px 0; }
+.connectedSummary > small { display: block; margin-top: 8px; }
+.connectedSummary p { font-size: 13px; line-height: 1.5; }
+.connectedCustomer .driverProfile { grid-template-columns: 44px minmax(0, 1fr); }
+.connectedCustomer .driverProfile strong { display: block; margin-top: 5px; font-size: 14px; }
+.connectedSession { display: flex; align-items: center; gap: 8px; color: #b9bec7; font-size: 12px; }
+.connectedSession > span { flex: 1; overflow-wrap: anywhere; }
+.connectedSession button { display: grid; place-items: center; min-width: 44px; min-height: 44px; border-radius: 12px; background: var(--panel2); color: #fff; }
+.connectedPlace { width: 100%; padding: 13px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: #fff; text-align: left; font-size: 14px; }
+.connectedPlace span { display: block; margin-top: 5px; font-size: 11px; color: #aeb2ba; }
+.connectedCustomer .headerRight .pill { white-space: normal; text-align: center; font-size: 9px; padding: 8px; max-width: 126px; }
+.connectedCustomer .cancelConfirm:disabled { opacity: .45; }
+.connectedCustomer .optionRow { flex-wrap: wrap; }

@@ -53,11 +53,11 @@ function RideBadge({ vehicle }) {
   return <div className="premiumBadge"><span className="premiumMark"><ShieldCheck size={17} strokeWidth={1.8}/></span><span><b>{vehicle.label}</b><small>{vehicle.model}</small></span><em>КУРС</em></div>;
 }
 
-function Stepper({ value, onChange }) {
+export function Stepper({ value, onChange }) {
   return <div className="stepper"><button aria-label="Намали пътниците" disabled={value === 1} onClick={() => onChange(value - 1)}>−</button><b aria-live="polite">{value} {value === 1 ? "пътник" : "пътници"}</b><button aria-label="Добави пътник" disabled={value === 4} onClick={() => onChange(value + 1)}>+</button></div>;
 }
 
-function CustomerScreen({ title, onBack, logo = false, right, centered = false, className = "", actions, overlay, children }) {
+export function CustomerScreen({ title, onBack, logo = false, right, centered = false, className = "", actions, overlay, children }) {
   return <section className={`customerBooking ${className}`} aria-label="Пътническо приложение">
     <Header title={title} onBack={onBack} logo={logo} right={right}/>
     <main className={`content customerContent ${centered ? "centered" : ""}`}>{children}</main>
@@ -66,7 +66,7 @@ function CustomerScreen({ title, onBack, logo = false, right, centered = false, 
   </section>;
 }
 
-function CancelRideDialog({ arrived, onKeep, onCancel }) {
+export function CancelRideDialog({ arrived, waiting = false, busy = false, onKeep, onCancel }) {
   const dialogRef = useRef(null);
   const onKeepRef = useRef(onKeep);
   onKeepRef.current = onKeep;
@@ -94,13 +94,13 @@ function CancelRideDialog({ arrived, onKeep, onCancel }) {
   return <div ref={dialogRef} className="cancelOverlay" role="dialog" aria-modal="true" aria-labelledby="cancelTitle" aria-describedby="cancelDescription">
     <div className="cancelPanel">
       <div className="cancelIcon"><AlertCircle size={20} strokeWidth={1.8}/></div>
-      <div><h2 id="cancelTitle">Отказваш курса?</h2><p id="cancelDescription" className="muted">{arrived ? "Шофьорът те чака на мястото за взимане." : "Шофьорът е на път към теб."}</p></div>
-      <div className="cancelActions"><Button secondary onClick={onKeep}>Запази курса</Button><button className="cancelConfirm" onClick={onCancel}>Откажи курса</button></div>
+      <div><h2 id="cancelTitle">Отказваш курса?</h2><p id="cancelDescription" className="muted">{waiting ? "Все още търсим шофьор за заявката." : arrived ? "Шофьорът те чака на мястото за взимане." : "Шофьорът е на път към теб."}</p></div>
+      <div className="cancelActions"><Button secondary onClick={onKeep}>Запази курса</Button><button className="cancelConfirm" disabled={busy} onClick={onCancel}>Откажи курса</button></div>
     </div>
   </div>;
 }
 
-function AddressField({ field, location, active, onFocus, onChange, onSearch, searching, suggestions, activeOption, onKeyDown, customLabel }) {
+export function AddressField({ field, location, active, onFocus, onChange, onSearch, searching, suggestions, activeOption, onKeyDown, customLabel }) {
   const isPickup = field === "pickup";
   const Icon = isPickup ? LocateFixed : MapPin;
   const label = customLabel || (isPickup ? "Взимане" : "Дестинация");
@@ -113,7 +113,7 @@ function AddressField({ field, location, active, onFocus, onChange, onSearch, se
   </form>;
 }
 
-function AddressSuggestions({ field, results, status, activeOption, onSelect }) {
+export function AddressSuggestions({ field, results, status, activeOption, onSelect }) {
   return <div className="addressSuggestions">
     <div className="addressSearchStatus" role="status" aria-live="polite">
       {status === "short" && <p className="searchMessage">Напиши поне 3 букви за предложения.</p>}
@@ -588,6 +588,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
       <Header logo right={<div className="customerHeaderActions"><button className="iconBtn offerBell" aria-label="Известия и оферти" onClick={openOffers}><Bell size={20} aria-hidden="true"/>{offers.settings.inApp && !offerUsed && offers.settings.readId !== offers.offer.id && <i aria-hidden="true"/>}</button><button className="iconBtn profileBtn" aria-label="Отвори профила" onClick={() => go("profile")}>{avatar}</button></div>} />
         <main className="content customerContent homeContent">
         <div className="homeIntro"><h1>{customer.name ? `Здравей, ${customer.name}` : "Къде ще пътуваме?"}</h1></div>
+        <a className="card switchCard" href="/ride"><span className="switchIcon">R</span><span><b>Тествай обща заявка</b><small>Свързан клиентски режим · с покана</small></span><ChevronRight className="cardChevron yellow" size={19} strokeWidth={1.8}/></a>
         {storageNotice}
         {recoveryNotice}
         <CustomerMap pickup={pickup} destination={destination} route={route} status={pickupEditedRef.current ? "manual" : locationStatus} addressStatus={addressStatus} recenterSignal={recenterSignal} onRecenter={() => setRecenterSignal(value => value + 1)} onDestinationSelect={selectMapDestination}/>
@@ -728,6 +729,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
         <span><b>{ride.pickup.label} → {ride.destination.label}</b><small>{formatRideDate(ride.completedAt)}</small><small>{ride.discountCents ? `С отстъпка ${formatMoney(ride.discountCents)} · ` : "RIVO · "}Повтори маршрута</small></span><strong>{formatMoney(ride.priceCents + ride.tipCents)}</strong>
       </button>)}</div>}
       <div className="eyebrow">RIVO ЕКОСИСТЕМА</div>
+      <a className="card switchCard" href="/ride"><span className="switchIcon">R</span><span><b>Обща заявка</b><small>Клиент и шофьор · затворен тест</small></span><ChevronRight className="cardChevron yellow" size={19} strokeWidth={1.8}/></a>
       <button className="card switchCard" onClick={openDriver}><span className="switchIcon">R</span><span><b>RIVO Driver</b><small>Шофьорско приложение</small></span><ChevronRight className="cardChevron yellow" size={19} strokeWidth={1.8}/></button>
       <button className="card switchCard" onClick={openAdmin}><span className="switchIcon white">A</span><span><b>RIVO Control</b><small>Администрация и партньорски автомобили</small></span><ChevronRight className="cardChevron yellow" size={19} strokeWidth={1.8}/></button>
     </CustomerScreen>

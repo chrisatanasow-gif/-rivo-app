@@ -22,7 +22,9 @@ export function useFareQuote(pickup, destination, enabled = true) {
     }, 350);
     return () => { controller.abort(); window.clearTimeout(timer); window.clearTimeout(expiry); };
   }, [key, attempt, enabled]);
-  const current = result?.key === key && result?.attempt === attempt
-    && (!result.quote || Date.parse(result.quote.expiresAt) > Date.now()) ? result : { loading: true };
+  const matches = result?.key === key && result?.attempt === attempt;
+  const current = !matches ? { loading: true }
+    : result.quote && Date.parse(result.quote.expiresAt) <= Date.now()
+      ? { error: "Цената изтече. Изчисли я отново." } : result;
   return { ...current, key, retry: () => setAttempt(value => value + 1) };
 }

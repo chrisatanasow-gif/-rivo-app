@@ -14,7 +14,9 @@ function loadTariff() {
 }
 
 export default function App() {
-  return window.location.pathname.replace(/\/$/, "") === "/pilot" ? <PilotApp/> : <PrototypeApp/>;
+  const path = window.location.pathname.replace(/\/$/, "");
+  if (path === "/ride") return <PilotApp customerUi="rivo"/>;
+  return path === "/pilot" ? <PilotApp/> : <PrototypeApp/>;
 }
 
 function PrototypeApp() {
