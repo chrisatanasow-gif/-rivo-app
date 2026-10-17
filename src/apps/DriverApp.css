@@ -1,9 +1,11 @@
 .driverScreen {
+  position: relative;
   height: 100%;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
+.driverLiveLink { display: flex; justify-content: center; align-items: center; min-height: 44px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; color: var(--yellow); font-size: 13px; text-decoration: none; }
 
 .driverScreen > .header {
   flex: none;

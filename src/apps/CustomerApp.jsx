@@ -66,7 +66,7 @@ export function CustomerScreen({ title, onBack, logo = false, right, centered = 
   </section>;
 }
 
-export function CancelRideDialog({ arrived, waiting = false, busy = false, onKeep, onCancel }) {
+export function CancelRideDialog({ arrived, waiting = false, busy = false, title = "Отказваш курса?", description, keepLabel = "Запази курса", confirmLabel = "Откажи курса", positive = false, onKeep, onCancel }) {
   const dialogRef = useRef(null);
   const onKeepRef = useRef(onKeep);
   onKeepRef.current = onKeep;
@@ -94,8 +94,8 @@ export function CancelRideDialog({ arrived, waiting = false, busy = false, onKee
   return <div ref={dialogRef} className="cancelOverlay" role="dialog" aria-modal="true" aria-labelledby="cancelTitle" aria-describedby="cancelDescription">
     <div className="cancelPanel">
       <div className="cancelIcon"><AlertCircle size={20} strokeWidth={1.8}/></div>
-      <div><h2 id="cancelTitle">Отказваш курса?</h2><p id="cancelDescription" className="muted">{waiting ? "Все още търсим шофьор за заявката." : arrived ? "Шофьорът те чака на мястото за взимане." : "Шофьорът е на път към теб."}</p></div>
-      <div className="cancelActions"><Button secondary onClick={onKeep}>Запази курса</Button><button className="cancelConfirm" disabled={busy} onClick={onCancel}>Откажи курса</button></div>
+      <div><h2 id="cancelTitle">{title}</h2><p id="cancelDescription" className="muted">{description || (waiting ? "Все още търсим шофьор за заявката." : arrived ? "Шофьорът те чака на мястото за взимане." : "Шофьорът е на път към теб.")}</p></div>
+      <div className="cancelActions"><Button secondary onClick={onKeep}>{keepLabel}</Button><button className={`cancelConfirm${positive ? " positive" : ""}`} disabled={busy} onClick={onCancel}>{confirmLabel}</button></div>
     </div>
   </div>;
 }

@@ -5,11 +5,12 @@ import { DEMO_DRIVER_VEHICLE } from "../data/mockData";
 import { calculateFare, formatMoney } from "../../shared/fare.js";
 import "./DriverApp.css";
 
-function DriverScreen({ title, right, onBack, className = "", centered = false, actions, children }) {
+export function DriverScreen({ title, right, onBack, className = "", centered = false, actions, overlay, children }) {
   return <section className={`driverScreen ${className}`} aria-label="Шофьорско приложение">
     <Header title={title} right={right} onBack={onBack}/>
     <main className={`content driverContent${centered ? " centered" : ""}`}>{children}</main>
     <footer className="driverActions">{actions}</footer>
+    {overlay}
   </section>;
 }
 
@@ -43,6 +44,7 @@ export default function DriverApp({ close, tariff, toast }) {
       <button className="driverExit" onClick={close}>КЪМ КЛИЕНТСКОТО ПРИЛОЖЕНИЕ</button>
     </>}>
         <div className="driverIntro"><h1>Здравей, Иван</h1><p className="muted">{vehicle.model} · CB 5237 MK</p></div>
+        <a className="driverLiveLink" href="/drive">Отвори общите тестови заявки</a>
         <Card className="onlineRow">
           <span><b>Статус</b><small>{online ? "Онлайн · приемаш заявки" : "Офлайн · не приемаш заявки"}</small></span>
           <button className="driverAvailability" role="switch" aria-label="Приемане на заявки" aria-checked={online} onClick={() => setOnline(v => !v)}><span className={`toggle ${online ? "on" : ""}`} aria-hidden="true"><i/></span></button>
