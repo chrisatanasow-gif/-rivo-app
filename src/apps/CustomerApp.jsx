@@ -522,7 +522,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   if (screen === "offers") return (
     <CustomerScreen title="Известия и оферти" onBack={back} className="customerOffers">
       <DailyOffers offers={offers} used={offerUsed}
-        onApply={() => { const saved = offers.update({ selectedId: offers.offer.id }); back(); toast(saved ? "Офертата е избрана. Отстъпката ще се вижда в цената." : "Офертата важи само за тази сесия — настройката не се запази."); }}
+        onApply={() => { const saved = offers.update({ selectedId: offers.offer.id }); back(); toast(saved ? "Офертата е избрана" : "Офертата важи само за тази сесия — настройката не се запази."); }}
         onRemove={() => offers.update({ selectedId: null })}/>
     </CustomerScreen>
   );
