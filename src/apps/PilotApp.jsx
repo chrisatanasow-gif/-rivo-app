@@ -179,26 +179,34 @@ export default function PilotApp() {
     try {
       const data = await pilotRequest("state", undefined, { signal });
       if (!mounted.current || signal?.aborted || request !== version.current) return;
+      if (!navigator.onLine) { setSyncError("Няма връзка. Ще обновим курса, когато се свържеш отново."); return; }
       setState(data); setSyncError("");
     } catch (problem) {
       if (!mounted.current || signal?.aborted || request !== version.current) return;
       if (problem.status === 401) { setParticipant(null); setState(null); }
-      setSyncError(problem.message);
+      setSyncError(navigator.onLine ? problem.message : "Няма връзка. Ще обновим курса, когато се свържеш отново.");
     }
   }, []);
   useEffect(() => {
     if (!participant) return undefined;
-    const controller = new AbortController();
+    let controller;
+    const stopPending = () => { controller?.abort(); controller = null; polling.current = false; };
     const poll = async () => {
-      if (polling.current || document.visibilityState === "hidden") return;
+      if (document.visibilityState === "hidden") { stopPending(); return; }
+      if (!navigator.onLine) { stopPending(); setSyncError("Няма връзка. Ще обновим курса, когато се свържеш отново."); return; }
+      if (polling.current) return;
+      const current = new AbortController();
+      controller = current;
       polling.current = true;
-      try { await refresh(controller.signal); } finally { polling.current = false; }
+      try { await refresh(current.signal); } finally { if (controller === current) { controller = null; polling.current = false; } }
     };
     poll();
     const interval = window.setInterval(poll, 2000);
     window.addEventListener("online", poll);
+    window.addEventListener("offline", poll);
+    window.addEventListener("focus", poll);
     document.addEventListener("visibilitychange", poll);
-    return () => { controller.abort(); window.clearInterval(interval); window.removeEventListener("online", poll); document.removeEventListener("visibilitychange", poll); };
+    return () => { stopPending(); window.clearInterval(interval); window.removeEventListener("online", poll); window.removeEventListener("offline", poll); window.removeEventListener("focus", poll); document.removeEventListener("visibilitychange", poll); };
   }, [participant, refresh]);
   async function run(action, body) {
     if (mutation.current) return;
@@ -227,7 +235,7 @@ export default function PilotApp() {
         {error && <div className="pilotError" role="alert">{error}{!participant && <button type="button" onClick={() => window.location.reload()}>Опитай отново</button>}</div>}
         {participant && <div className={`pilotSync ${syncError ? "offline" : ""}`} role="status"><span>{syncError || (state ? "Свързано · заявките се обновяват" : "Зареждаме заявките…")}</span><button type="button" aria-label="Обнови заявките" disabled={busy} onClick={() => refresh()}><RefreshCw size={15}/></button></div>}
         {!participant && <PilotLogin onLogin={data => run("login", data)} busy={busy}/>}
-        {participant && state && (participant.role === "customer" ? <CustomerPilot state={state} busy={busy} onCreate={body => run("create", body)} onTransition={(rideId, command) => run("transition", { rideId, command })}/> : <DriverPilot state={state} busy={busy} onTransition={(rideId, command) => run("transition", { rideId, command })}/>)}
+        {participant && state && (participant.role === "customer" ? <CustomerPilot state={state} busy={busy || Boolean(syncError)} onCreate={body => run("create", body)} onTransition={(rideId, command) => run("transition", { rideId, command })}/> : <DriverPilot state={state} busy={busy || Boolean(syncError)} onTransition={(rideId, command) => run("transition", { rideId, command })}/>)}
       </>}
       <a className="pilotBack" href="/">Към дизайна на RIVO</a>
     </main>

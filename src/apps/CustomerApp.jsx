@@ -11,6 +11,8 @@ import { calculateFare, formatMoney } from "../../shared/fare.js";
 import { isValidLocation, routeKey } from "../../shared/locations.js";
 import FareBreakdown from "../components/FareBreakdown.jsx";
 import useCustomerProfile from "../lib/useCustomerProfile.js";
+import useActiveRide from "../lib/useActiveRide.js";
+import { cleanActiveRide, demoEta, demoTripProgress, DEMO_MATCH_MS, DEMO_ETA_TICK_MS, DEMO_ETA } from "../lib/activeRide.js";
 import useDailyOffers from "../lib/useDailyOffers.js";
 import DailyOffers, { AppliedOffer, OfferBanner } from "../components/DailyOffers.jsx";
 import { applyDailyOffer } from "../../shared/daily-offers.js";
@@ -143,38 +145,40 @@ function BookingDetails({ timing, setTiming, passengers, setPassengers, luggage,
 export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   const { profile: customer, updateProfile, storageError, retrySave } = useCustomerProfile();
   const offers = useDailyOffers();
+  const activeSession = useActiveRide(customer.rides);
+  const restoredRide = activeSession.initialRide;
   const [nameDraft, setNameDraft] = useState(customer.name);
   const [editingPlace, setEditingPlace] = useState(null);
   const previousDestinationRef = useRef(null);
-  const [screen, setScreen] = useState("home");
+  const [screen, setScreen] = useState(restoredRide?.stage || "home");
   const [history, setHistory] = useState([]);
-  const [pickup, setPickup] = useState(DEFAULT_PICKUP_LOCATION);
-  const [locationStatus, setLocationStatus] = useState("requesting");
-  const [destination, setDestination] = useState({ label: "", lat: null, lng: null });
+  const [pickup, setPickup] = useState(restoredRide?.pickup || DEFAULT_PICKUP_LOCATION);
+  const [locationStatus, setLocationStatus] = useState(restoredRide ? "manual" : "requesting");
+  const [destination, setDestination] = useState(restoredRide?.destination || { label: "", lat: null, lng: null });
   const [activeAddress, setActiveAddress] = useState("destination");
   const addressRequestRef = useRef(0);
   const suggestionTimerRef = useRef(null);
   const suggestionAbortRef = useRef(null);
-  const pickupEditedRef = useRef(false);
-  const [route, setRoute] = useState(null);
+  const pickupEditedRef = useRef(Boolean(restoredRide));
+  const [route, setRoute] = useState(restoredRide?.route || null);
   const [routeAttempt, setRouteAttempt] = useState(0);
-  const [bookedFare, setBookedFare] = useState(null);
+  const [bookedFare, setBookedFare] = useState(restoredRide?.fare || null);
   const [driverRoute, setDriverRoute] = useState(null);
   const [searchResults, setSearchResults] = useState([]);
   const [searchStatus, setSearchStatus] = useState("idle");
   const [activeOption, setActiveOption] = useState(-1);
   const [addressStatus, setAddressStatus] = useState("idle");
   const [recenterSignal, setRecenterSignal] = useState(0);
-  const [eta, setEta] = useState(vehicles.rivo.eta);
-  const [tripProgress, setTripProgress] = useState(0);
+  const [eta, setEta] = useState(() => demoEta(restoredRide));
+  const [tripProgress, setTripProgress] = useState(() => demoTripProgress(restoredRide));
   const [rating, setRating] = useState(5);
   const [tip, setTip] = useState(0);
-  const [passengers, setPassengers] = useState(1);
-  const [luggage, setLuggage] = useState(false);
-  const [timing, setTiming] = useState("now");
-  const [payment, setPayment] = useState("cash");
+  const [passengers, setPassengers] = useState(restoredRide?.passengers || 1);
+  const [luggage, setLuggage] = useState(restoredRide?.luggage || false);
+  const [timing, setTiming] = useState(restoredRide?.timing || "now");
+  const [payment, setPayment] = useState(restoredRide?.payment || "cash");
   const [cancelOpen, setCancelOpen] = useState(false);
-  const [tripId, setTripId] = useState("");
+  const [tripId, setTripId] = useState(restoredRide?.id || "");
   const [tripDate, setTripDate] = useState("");
   const savedPlaces = placeSlots.map(slot => ({ ...slot, location: customer.places[slot.id] }));
   const editingSlot = placeSlots.find(slot => slot.id === editingPlace);
@@ -194,6 +198,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   const remainingTripMinutes = currentRoute ? Math.max(1, Math.ceil(currentRoute.durationMinutes * (1 - tripDriverProgress))) : null;
 
   useEffect(() => {
+    if (restoredRide) return undefined;
     let active = true;
     requestCurrentLocation().then(async result => {
       if (!active) return;
@@ -214,6 +219,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   }, []);
 
   useEffect(() => {
+    if (bookedFare) return undefined;
     if (editingPlace || !isValidLocation(pickup) || !isValidLocation(destination)) {
       setRoute(null);
       return undefined;
@@ -224,7 +230,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
       if (active) setRoute(result);
     });
     return () => { active = false; };
-  }, [pickup, destination, routeAttempt, editingPlace]);
+  }, [pickup, destination, routeAttempt, editingPlace, bookedFare]);
 
   useEffect(() => {
     const driverLocation = isValidLocation(pickup) ? createSimulatedDriverLocation(pickup) : null;
@@ -440,6 +446,25 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
     offers.update({ selectedId: null });
   };
 
+  const cancelRide = () => {
+    activeSession.end();
+    setCancelOpen(false);
+    setHistory([]);
+    setBookedFare(null);
+    setScreen("home");
+  };
+
+  const arrive = () => {
+    activeSession.transition({ stage: "arriving", arrivalAt: Math.min(Date.now(), activeSession.ride.arrivalAt) });
+    setEta(0);
+  };
+
+  const startTrip = () => {
+    activeSession.transition({ stage: "trip", tripStartedAt: Date.now() });
+    setTripProgress(0);
+    setScreen("trip");
+  };
+
   const completeTrip = () => {
     const completedAt = new Date().toISOString();
     const completedFare = bookedFare || fare;
@@ -449,6 +474,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
       priceCents, tipCents: tip * 100, rating, completedAt, passengers, luggage, payment,
       ...(completedFare?.discountCents ? { promotion: completedFare.promotion, discountCents: completedFare.discountCents, originalPriceCents: completedFare.originalPriceCents } : {})
     }, ...profile.rides.filter(ride => ride.id !== tripId)] }));
+    activeSession.end();
     setScreen("complete");
   };
 
@@ -462,14 +488,35 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
     if (!fare) return;
     const currentFare = applyDailyOffer(baseFare, offers.settings.selectedId, offerUsed);
     if (currentFare.priceCents !== fare.priceCents) { offers.update({ selectedId: null }); toast("Дневната оферта е изтекла. Прегледай актуалната цена."); return; }
-    setTripId(crypto.randomUUID());
-    setBookedFare(fare);
+    const bookedAt = Date.now();
+    const snapshot = cleanActiveRide({ version: 1, mode: "demo", id: crypto.randomUUID(), stage: "matching",
+      pickup, destination, fare, route: currentRoute, bookedAt,
+      arrivalAt: bookedAt + DEMO_MATCH_MS + DEMO_ETA * DEMO_ETA_TICK_MS,
+      tripStartedAt: null, passengers, luggage, timing, payment });
+    if (!snapshot) { toast("Маршрутът не е валиден. Изчисли го отново."); setRouteAttempt(value => value + 1); setScreen("rides"); return; }
+    pickupEditedRef.current = true;
+    invalidateAddressRequests();
+    activeSession.save(snapshot);
+    setTripId(snapshot.id);
+    setRoute(snapshot.route);
+    setBookedFare(snapshot.fare);
     setEta(selected.eta);
     setTripProgress(0);
     setTip(0);
     setRating(5);
     setScreen("matching");
   };
+
+  const recoveryNotice = <>
+    {activeSession.restored && activeSession.ride && <p className="rideRecoveryNotice" role="status">Активният демо курс е възстановен. Маршрутът и потвърдената цена са запазени.</p>}
+    {activeSession.error && <div className="profileStorageNotice" role="status">
+      <p>{activeSession.error === "save" ? "Курсът продължава тук, но не успяхме да го запазим за възстановяване след презареждане."
+        : activeSession.error === "clear" ? "Не успяхме да изчистим запазения демо курс от телефона. Опитай отново, преди да затвориш RIVO."
+        : activeSession.error === "invalid" ? "Старият запис за демо курс е изтекъл или невалиден. Можеш да започнеш нов курс."
+        : "Не успяхме да прочетем активния демо курс от телефона. Презареди, за да опиташ отново."}</p>
+      {activeSession.error !== "invalid" && <button onClick={activeSession.error === "load" ? () => window.location.reload() : activeSession.retry}>{activeSession.error === "load" ? "Презареди RIVO" : "Опитай отново"}</button>}
+    </div>}
+  </>;
 
   const storageNotice = storageError && <div className="profileStorageNotice" role="status">
     <p>{storageError === "load" ? "Запазените данни не се заредиха. Можеш да добавиш адресите отново." : "Промените са само за тази сесия. Не успяхме да ги запазим на телефона."}</p>
@@ -491,28 +538,37 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   }, [screen]);
 
   useEffect(() => {
-    if (screen !== "arriving") return;
-    setEta(selected.eta);
-    const id = setInterval(() => setEta(v => Math.max(0, v - 1)), 1800);
-    return () => clearInterval(id);
-  }, [screen, selected.eta]);
+    if (screen !== "arriving" || !activeSession.ride) return undefined;
+    const update = () => setEta(demoEta(activeSession.ride));
+    update();
+    const id = setInterval(update, 300);
+    window.addEventListener("focus", update);
+    document.addEventListener("visibilitychange", update);
+    return () => { clearInterval(id); window.removeEventListener("focus", update); document.removeEventListener("visibilitychange", update); };
+  }, [screen, activeSession.ride]);
 
   useEffect(() => {
-    if (screen !== "matching") return;
-    const id = setTimeout(() => setScreen("arriving"), 950);
+    if (screen !== "matching" || !activeSession.ride) return undefined;
+    const id = setTimeout(() => {
+      activeSession.transition({ stage: "arriving" });
+      setScreen("arriving");
+    }, Math.max(0, activeSession.ride.bookedAt + DEMO_MATCH_MS - Date.now()));
     return () => clearTimeout(id);
-  }, [screen]);
+  }, [screen, activeSession.ride]);
 
   useEffect(() => {
-    if (screen !== "trip") return;
-    setTripProgress(0);
-    const id = setInterval(() => setTripProgress(v => Math.min(92, v + 6)), 1000);
-    return () => clearInterval(id);
-  }, [screen]);
+    if (screen !== "trip" || !activeSession.ride) return undefined;
+    const update = () => setTripProgress(demoTripProgress(activeSession.ride));
+    update();
+    const id = setInterval(update, 500);
+    window.addEventListener("focus", update);
+    document.addEventListener("visibilitychange", update);
+    return () => { clearInterval(id); window.removeEventListener("focus", update); document.removeEventListener("visibilitychange", update); };
+  }, [screen, activeSession.ride]);
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("offer");
-    if (id && /^daily-\d{4}-\d{2}-\d{2}$/.test(id)) {
+    if (!activeSession.initialRide && id && /^daily-\d{4}-\d{2}-\d{2}$/.test(id)) {
       offers.update({ readId: offers.offer.id });
       setHistory(["home"]);
       setScreen("offers");
@@ -533,6 +589,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
         <main className="content customerContent homeContent">
         <div className="homeIntro"><h1>{customer.name ? `Здравей, ${customer.name}` : "Къде ще пътуваме?"}</h1></div>
         {storageNotice}
+        {recoveryNotice}
         <CustomerMap pickup={pickup} destination={destination} route={route} status={pickupEditedRef.current ? "manual" : locationStatus} addressStatus={addressStatus} recenterSignal={recenterSignal} onRecenter={() => setRecenterSignal(value => value + 1)} onDestinationSelect={selectMapDestination}/>
         <button className="destinationCard" onClick={() => { setActiveAddress("destination"); go("destination"); }}>
           <span className="destinationIcon"><Navigation2 size={18} strokeWidth={1.8} aria-hidden="true"/></span><span><small>Къде отиваш?</small><b>{locationLabel(destination)}</b><small>Натисни, за да промениш маршрута</small></span><ChevronRight className="cardChevron" size={20} strokeWidth={1.8}/>
@@ -605,6 +662,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
 
   if (screen === "matching") return (
     <CustomerScreen logo right={<Pill live>RIVO MATCH</Pill>} className="customerRide customerMatching" centered>
+        {recoveryNotice}
         <div className="matchingVisual"><LoaderCircle size={30} strokeWidth={1.7}/></div>
         <div><span className="eyebrow">ЗАЯВКАТА Е ИЗПРАТЕНА</span><h1>Търсим най-близкия RIVO…</h1><p className="muted">Изчакваме шофьор да приеме курса.</p></div>
         <RivoMap pickup={pickup} destination={destination} route={route}/>
@@ -614,9 +672,10 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   if (screen === "arriving") return (
     <CustomerScreen logo right={<span className="arrivalStatus" role="status"><Pill live>{eta ? "ШОФЬОРЪТ ИДВА" : "ШОФЬОРЪТ ПРИСТИГНА"}</Pill></span>} className="customerRide customerArrival" actions={<>
       <p className="customerActionHint">{eta ? "Шофьорът е на път към мястото за взимане." : "Шофьорът те чака на избрания адрес."}</p>
-      {eta ? <Button secondary onClick={() => setEta(0)}>ДЕМО: ШОФЬОРЪТ ПРИСТИГНА</Button> : <Button onClick={() => setScreen("trip")}>ДЕМО: ЗАПОЧНИ ПЪТУВАНЕТО</Button>}
+      {eta ? <Button secondary onClick={arrive}>ДЕМО: ШОФЬОРЪТ ПРИСТИГНА</Button> : <Button onClick={startTrip}>ДЕМО: ЗАПОЧНИ ПЪТУВАНЕТО</Button>}
       <button className="quietAction" onClick={() => setCancelOpen(true)}>Откажи курса</button>
-    </>} overlay={cancelOpen && <CancelRideDialog arrived={eta === 0} onKeep={() => setCancelOpen(false)} onCancel={() => { setCancelOpen(false); setHistory([]); setBookedFare(null); setScreen("home"); }}/> }>
+    </>} overlay={cancelOpen && <CancelRideDialog arrived={eta === 0} onKeep={() => setCancelOpen(false)} onCancel={cancelRide}/> }>
+        {recoveryNotice}
         <div className="statusHeader"><div><span className="eyebrow">КУРСЪТ Е ПОТВЪРДЕН</span><h1>{eta ? `Идва след ${eta} мин` : "Шофьорът пристигна"}</h1><p className="muted">{selected.model} · {selected.label}</p></div><span className="liveDot"/></div>
         <RivoMap pickup={pickup} destination={null} route={driverRoute} driverProgress={arrivingDriverProgress} frameProgress="to-pickup"/>
         <Card className="driverProfile"><div className="driverAvatar">И</div><div className="grow"><b>Иван Петров</b><small>★ 4.9 · 248 курса</small><small>{selected.model} · CB 5237 MK</small></div><div className="actions"><button aria-label="Обади се на Иван" onClick={() => toast("Обажданията предстоят в тестовата версия.")}><Phone size={17} strokeWidth={1.8}/></button><button aria-label="Отвори чат" onClick={() => toast("Чатът предстои в тестовата версия.")}><MessageCircle size={17} strokeWidth={1.8}/></button></div></Card>
@@ -627,6 +686,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
 
   if (screen === "trip") return (
     <CustomerScreen logo right={<Pill live>В ПЪТУВАНЕ</Pill>} className="customerRide customerTrip" actions={<Button onClick={completeTrip}>ДЕМО: ЗАВЪРШИ ПЪТУВАНЕТО</Button>}>
+        {recoveryNotice}
         <div className="statusHeader"><div><span className="eyebrow">{selected.label} · В ПЪТ</span><h1>{remainingTripMinutes ? `Около ${remainingTripMinutes} мин до ${locationLabel(destination)}` : `Към ${locationLabel(destination)}`}</h1><p className="muted">Оставащото време е оценка по маршрута.</p></div><span className="liveDot"/></div>
         <RivoMap pickup={pickup} destination={destination} route={route} driverProgress={tripDriverProgress} frameProgress="remaining"/><div className="progress"><i style={{width:`${tripProgress}%`}}/></div>
         <Card className="activeTripCard"><div className="driverAvatar">И</div><span className="grow"><b>Иван Петров</b><small>{selected.model} · CB 5237 MK</small></span><strong className="price">{formatMoney(priceCents)}</strong></Card>
@@ -637,6 +697,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   if (screen === "complete") return (
     <CustomerScreen logo className="customerRide customerComplete" centered actions={<Button onClick={finishRide}>ГОТОВО</Button>}>
         {storageNotice}
+        {recoveryNotice}
         <div className="check">✓</div><div><span className="eyebrow">КУРСЪТ Е ЗАВЪРШЕН</span><h1>Пристигнахте</h1><p className="muted">Благодарим, че пътувахте с RIVO.</p></div>
         <Card className="receipt"><RideBadge vehicle={selected}/><div className="receiptTop"><span><b>Завършен курс</b></span><strong>{formatMoney(priceCents + tip * 100)}</strong></div><div className="receiptMeta"><span><small>TRIP ID</small><b>#RIVO-{tripId.slice(0, 8).toUpperCase()}</b></span><span><small>ДАТА И ЧАС</small><b>{tripDate}</b></span></div><div className="receiptRow"><span>Маршрут</span><b>{locationLabel(pickup).split(",")[0]} → {locationLabel(destination).split(",")[0]}</b></div><div className="receiptRow"><span>Време</span><b>{route ? `${route.durationMinutes} мин · ${route.distanceKm.toFixed(1)} км` : "Маршрутът не е наличен"}</b></div><div className="receiptRow"><span>Плащане</span><b>{payment === "cash" ? "Кеш" : "Visa •••• 4242"}</b></div><div className="receiptRow total"><span>Общо</span><strong>{formatMoney(priceCents + tip * 100)}</strong></div></Card>
         {bookedFare?.discountCents > 0 && <><AppliedOffer fare={bookedFare}/><div className="receiptRow"><span>Спестено с офертата</span><b>{formatMoney(bookedFare.discountCents)}</b></div></>}
@@ -650,6 +711,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
       <Card className="profileHero"><div className="avatar">{avatar}</div><div><h2>{customer.name || "Твоят профил"}</h2><small>{customer.rides.length} {customer.rides.length === 1 ? "курс" : "курса"} в историята</small></div></Card>
       <p className="profileLocalNote">Името, адресите и историята се пазят на този телефон.</p>
       {storageNotice}
+      {recoveryNotice}
       <form className="profileNameForm card" onSubmit={event => { event.preventDefault(); const saved = updateProfile(profile => ({ ...profile, name: nameDraft })); setNameDraft(nameDraft.trim()); if (saved) toast("Името е запазено"); }}>
         <label htmlFor="customer-name">Твоето име</label>
         <input id="customer-name" autoComplete="given-name" maxLength={40} placeholder="Как да те наричаме?" value={nameDraft} onChange={event => setNameDraft(event.target.value)}/>

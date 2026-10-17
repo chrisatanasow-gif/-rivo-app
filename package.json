@@ -11,7 +11,8 @@
     "test:browser": "playwright test",
     "db:migrate:pilot": "node --env-file-if-exists=.env.local scripts/migrate-pilot.mjs",
     "test:notifications": "node --test tests/notifications.test.mjs",
-    "db:migrate:notifications": "node --env-file-if-exists=.env.local scripts/migrate-notifications.mjs"
+    "db:migrate:notifications": "node --env-file-if-exists=.env.local scripts/migrate-notifications.mjs",
+    "test:recovery": "node --test tests/active-ride.test.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",

@@ -149,3 +149,5 @@
   .customerActions { padding-top: 8px; padding-bottom: calc(env(safe-area-inset-bottom) + 10px); }
   .customerActionHint { font-size: 10px; }
 }
+
+.rideRecoveryNotice { margin: 0; padding: 11px 12px; border: 1px solid #3a4835; border-radius: 13px; background: #172016; color: #c5ddbe; font-size: 12px; line-height: 1.5; text-align: left; }
