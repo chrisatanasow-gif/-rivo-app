@@ -32,6 +32,9 @@ CREATE TABLE IF NOT EXISTS rivo_pilot_rides (
 );
 
 ALTER TABLE rivo_pilot_rides ADD COLUMN IF NOT EXISTS fare_quote jsonb;
+ALTER TABLE rivo_pilot_rides ADD COLUMN IF NOT EXISTS driver_tracking_id uuid;
+ALTER TABLE rivo_pilot_rides ADD COLUMN IF NOT EXISTS driver_location jsonb;
+ALTER TABLE rivo_pilot_rides ADD COLUMN IF NOT EXISTS driver_location_updated_at timestamptz;
 
 CREATE UNIQUE INDEX IF NOT EXISTS rivo_pilot_one_customer_ride
   ON rivo_pilot_rides(customer_id)

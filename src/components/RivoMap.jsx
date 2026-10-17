@@ -9,7 +9,7 @@ import "./RivoMap.css";
 const DEFAULT_CENTER = { lat: 42.6019, lng: 23.0334 };
 maplibregl.setWorkerUrl(mapWorkerUrl);
 
-export default function RivoMap({ pickup, destination, route, driverProgress, frameProgress, onDestinationSelect, onMapReady, recenterSignal, className = "" }) {
+export default function RivoMap({ pickup, destination, route, driverProgress, driverLocation, driverFocusSignal = 0, frameProgress, onDestinationSelect, onMapReady, recenterSignal, className = "" }) {
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
   const pickupRef = useRef(null);
@@ -21,6 +21,7 @@ export default function RivoMap({ pickup, destination, route, driverProgress, fr
   const [mapLoading, setMapLoading] = useState(true);
   const [mapError, setMapError] = useState(false);
   const [mapAttempt, setMapAttempt] = useState(0);
+  const hasLiveDriver = isValidLocation(driverLocation);
 
   useEffect(() => {
     onDestinationSelectRef.current = onDestinationSelect;
@@ -174,8 +175,8 @@ export default function RivoMap({ pickup, destination, route, driverProgress, fr
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    updateDriverMarker(map, driverRef, route?.geometry?.coordinates, driverProgress);
-  }, [route, mapReady, driverProgress]);
+    updateDriverMarker(map, driverRef, route?.geometry?.coordinates, driverProgress, driverLocation);
+  }, [route, mapReady, driverProgress, driverLocation]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -194,6 +195,7 @@ export default function RivoMap({ pickup, destination, route, driverProgress, fr
     const bounds = new maplibregl.LngLatBounds();
     visibleCoordinates.forEach(coordinate => bounds.extend(coordinate));
     if (progress !== null) bounds.extend(coordinates[Math.round(progress * (coordinates.length - 1))]);
+    if (isValidLocation(driverLocation)) bounds.extend([driverLocation.lng, driverLocation.lat]);
 
     map.fitBounds(bounds, {
       padding: { top: 42, right: 34, bottom: 74, left: 34 },
@@ -202,6 +204,20 @@ export default function RivoMap({ pickup, destination, route, driverProgress, fr
       essential: true
     });
   }, [route, mapReady, frameProgress, driverProgress]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !hasLiveDriver) return;
+    if (driverFocusSignal) map.flyTo({ center: [driverLocation.lng, driverLocation.lat], zoom: 14, duration: 650 });
+    else {
+      const bounds = new maplibregl.LngLatBounds();
+      for (const point of [pickup, destination, driverLocation]) if (isValidLocation(point)) bounds.extend([point.lng, point.lat]);
+      for (const point of route?.geometry?.coordinates || []) bounds.extend(point);
+      map.fitBounds(bounds, { padding: { top: 42, right: 34, bottom: 74, left: 34 }, maxZoom: 14, duration: 650 });
+    }
+    // Frame the first received position or an explicit focus action, without
+    // taking control of the map on every GPS sample.
+  }, [mapReady, hasLiveDriver, driverFocusSignal]);
 
   useEffect(() => () => {
     if (driverRef.current) driverRef.current.remove();
@@ -229,8 +245,9 @@ function locationMarker(kind, label) {
   return element;
 }
 
-function updateDriverMarker(map, markerRef, coordinates, progress) {
-  if (!Array.isArray(coordinates) || coordinates.length < 2 || !Number.isFinite(progress)) {
+function updateDriverMarker(map, markerRef, coordinates, progress, livePosition) {
+  const live = isValidLocation(livePosition);
+  if (!live && (!Array.isArray(coordinates) || coordinates.length < 2 || !Number.isFinite(progress))) {
     if (markerRef.current) {
       markerRef.current.remove();
       markerRef.current = null;
@@ -238,7 +255,7 @@ function updateDriverMarker(map, markerRef, coordinates, progress) {
     return;
   }
 
-  const position = getRoutePosition(coordinates, clamp(progress, 0, 1));
+  const position = live ? [livePosition.lng, livePosition.lat] : getRoutePosition(coordinates, clamp(progress, 0, 1));
   if (!markerRef.current) {
     const element = document.createElement("div");
     element.className = "rivoDriverMarker";
@@ -247,6 +264,14 @@ function updateDriverMarker(map, markerRef, coordinates, progress) {
     markerRef.current = new maplibregl.Marker({ element, anchor: "center" }).setLngLat(position).addTo(map);
   } else {
     markerRef.current.setLngLat(position);
+  }
+  const element = markerRef.current.getElement();
+  element.classList.toggle("isStale", Boolean(livePosition?.stale));
+  if (live) {
+    element.setAttribute("role", "img");
+    element.setAttribute("aria-label", livePosition.stale ? "Последна известна позиция на шофьора" : "GPS позиция на шофьора");
+    element.dataset.latitude = String(livePosition.lat);
+    element.dataset.longitude = String(livePosition.lng);
   }
 }
 

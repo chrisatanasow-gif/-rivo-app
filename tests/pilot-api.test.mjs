@@ -54,6 +54,64 @@ const draft = extras => ({
 });
 const transition = (client, rideId, command) => request("transition", { rideId, command }, client.cookie);
 
+test("only the assigned driver shares GPS and stream revocation blocks late writes", async () => {
+  const customer = await login(), driver = await login("driver"), other = await login("driver");
+  const id = (await request("create", draft(), customer.cookie)).data.ride.id;
+  const trackingId = randomUUID();
+  const tracking = (client, command, token = trackingId) => request("tracking", { rideId: id, command, trackingId: token }, client.cookie);
+  const position = (client, sequence = 1, token = trackingId, extras = {}) => request("position", { rideId: id, trackingId: token, position: { lat: 42.61, lng: 23.05, accuracy: 15, measuredAt: Date.now(), sequence, ...extras } }, client.cookie);
+  assert.equal((await tracking(customer, "start")).status, 403);
+  assert.equal((await tracking(driver, "start")).status, 409);
+  await transition(driver, id, "accept");
+  assert.equal((await tracking(other, "start")).status, 409);
+  assert.equal((await tracking(driver, "start")).status, 200);
+  assert.equal((await position(customer)).status, 403);
+  assert.equal((await position(other)).status, 409);
+  assert.equal((await position(driver)).data.accepted, true);
+  const state = (await request("state", undefined, customer.cookie)).data;
+  assert.equal(state.activeRide.driverLocation.lat, 42.61);
+  assert.equal(state.activeRide.driverLocation.accuracy, 15);
+  assert.equal(state.activeRide.driverTracking, true);
+  assert.ok(!JSON.stringify(state).includes(trackingId));
+  assert.deepEqual((await request("state", undefined, other.cookie)).data.rides, []);
+  assert.equal((await position(driver, 2, trackingId, { lat: 42.62 })).data.accepted, false);
+  await query("UPDATE rivo_pilot_rides SET driver_location_updated_at = now() - interval '3 seconds' WHERE id = $1", [id]);
+  assert.equal((await position(driver, 2, trackingId, { lat: 42.62 })).data.accepted, true);
+  await query("UPDATE rivo_pilot_rides SET driver_location_updated_at = now() - interval '3 seconds' WHERE id = $1", [id]);
+  assert.equal((await position(driver, 1)).data.accepted, false);
+  assert.equal((await request("state", undefined, customer.cookie)).data.activeRide.driverLocation.lat, 42.62);
+  assert.equal((await tracking(driver, "stop")).status, 200);
+  assert.equal((await position(driver, 3)).status, 409);
+  assert.equal((await request("state", undefined, customer.cookie)).data.activeRide.driverLocation, null);
+  const replacement = randomUUID();
+  await tracking(driver, "start", replacement);
+  assert.equal((await tracking(driver, "stop")).status, 409);
+  assert.equal((await position(driver, 1, replacement)).data.accepted, true);
+  await transition(driver, id, "arrive"); await transition(driver, id, "start");
+  await transition(driver, id, "complete");
+  assert.equal((await position(driver, 2, replacement)).status, 409);
+  const finished = (await request("state", undefined, customer.cookie)).data.rides[0];
+  assert.equal(finished.driverLocation, null); assert.equal(finished.driverTracking, false);
+  const row = (await query("SELECT driver_tracking_id, driver_location, driver_location_updated_at FROM rivo_pilot_rides WHERE id = $1", [id]))[0];
+  assert.deepEqual(row, { driver_tracking_id: null, driver_location: null, driver_location_updated_at: null });
+});
+
+test("GPS rejects malformed or old measurements and hides points after two minutes", async () => {
+  const customer = await login(), driver = await login("driver");
+  const id = (await request("create", draft(), customer.cookie)).data.ride.id, trackingId = randomUUID();
+  await transition(driver, id, "accept");
+  await request("tracking", { rideId: id, command: "start", trackingId }, driver.cookie);
+  for (const extras of [{ lat: "42.61" }, { lng: null }, { lat: 91 }, { accuracy: -1 }, { accuracy: 501 }, { accuracy: Infinity }, { measuredAt: Date.now() - 60000 }, { measuredAt: Date.now() + 60000 }, { sequence: 0 }, { sequence: 1.5 }]) {
+    const response = await request("position", { rideId: id, trackingId, position: { lat: 42.61, lng: 23.05, accuracy: 15, measuredAt: Date.now(), sequence: 1, ...extras } }, driver.cookie);
+    assert.equal(response.status, 400);
+  }
+  await request("position", { rideId: id, trackingId, position: { lat: 42.61, lng: 23.05, accuracy: 15, measuredAt: Date.now(), sequence: 1 } }, driver.cookie);
+  await query("UPDATE rivo_pilot_rides SET driver_location_updated_at = now() - interval '121 seconds' WHERE id = $1", [id]);
+  assert.equal((await request("state", undefined, customer.cookie)).data.activeRide.driverLocation, null);
+  await transition(customer, id, "cancel");
+  assert.equal((await query("SELECT driver_location FROM rivo_pilot_rides WHERE id = $1", [id]))[0].driver_location, null);
+});
+
 test("two independent sessions share the full ride lifecycle across handler instances", async () => {
   const customer = await login();
   const driver = await login("driver");

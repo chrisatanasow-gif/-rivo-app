@@ -61,6 +61,7 @@
 }
 
 .mapUnavailable b { font-size: 13px; }
+.rivoDriverMarker.isStale { background: #a99354; box-shadow: none; opacity: .7; }
 .mapUnavailable small { margin: 0; }
 .mapUnavailable button {
   min-height: 44px;

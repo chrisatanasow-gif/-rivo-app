@@ -7,6 +7,7 @@ import { useFareQuote } from "../services/useFareQuote.js";
 import { formatMoney } from "../../shared/fare.js";
 import FareBreakdown from "../components/FareBreakdown.jsx";
 import ConnectedCustomerApp from "./ConnectedCustomerApp.jsx";
+import DriverTracking from "../components/DriverTracking.jsx";
 import "./pilot.css";
 
 const PRESETS = [
@@ -144,6 +145,7 @@ function DriverPilot({ state, busy, onTransition }) {
   if (ride) return <>
     <div className="pilotStatus" aria-live="polite"><span className="eyebrow">ТВОЯТ КУРС</span><h1>{STATUS[ride.status][0]}</h1></div>
     <RideDetails ride={ride}/><Card className="pilotRide"><small>ПЪТНИК</small><h2>{ride.customerName}</h2></Card>
+    <DriverTracking key={ride.id} ride={ride}/>
     <Button disabled={busy} onClick={() => onTransition(ride.id, next[ride.status][0])}>{next[ride.status][1]}</Button>
     {ride.status !== "in_progress" && <Button secondary disabled={busy} onClick={() => onTransition(ride.id, "cancel")}>ОТКАЖИ КУРСА</Button>}
   </>;

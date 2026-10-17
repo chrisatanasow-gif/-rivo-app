@@ -35,3 +35,9 @@
 .pilotRequest>p{margin:0}
 .pilotHistory{margin-top:10px}
 .pilotBack{color:var(--muted);font-size:12px;text-align:center;text-decoration:underline;margin-top:8px;padding:10px}
+.driverTracking{display:grid;gap:10px;padding:14px}
+.driverTrackingTitle{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--yellow)}
+.driverTracking p{margin:0;font-size:13px;line-height:1.5}
+.driverTracking small{font-size:11px;line-height:1.5;color:var(--muted)}
+.driverTracking .button{min-height:44px;font-size:12px}
+.driverTracking .trackingError{color:#ffcfcb}

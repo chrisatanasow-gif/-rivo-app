@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { History, LogOut, RefreshCw, Users } from "lucide-react";
+import { History, LocateFixed, LogOut, RefreshCw, Users } from "lucide-react";
 import { Button, Card, Pill } from "../components/UI.jsx";
 import { AddressField, AddressSuggestions, CancelRideDialog, CustomerScreen, Stepper } from "./CustomerApp.jsx";
 import RivoMap from "../components/RivoMap.jsx";
@@ -7,6 +7,7 @@ import FareBreakdown from "../components/FareBreakdown.jsx";
 import useBookingPlaces from "../services/useBookingPlaces.js";
 import { useFareQuote } from "../services/useFareQuote.js";
 import { getRouteGeometry } from "../services/routingService.js";
+import useLiveDriverLocation from "../services/useLiveDriverLocation.js";
 import { isValidLocation, routeKey } from "../../shared/locations.js";
 import { formatMoney } from "../../shared/fare.js";
 import "./ConnectedCustomerApp.css";
@@ -55,6 +56,8 @@ export default function ConnectedCustomerApp({ state, busy, error, syncError, on
   const destination = ride?.destination || places.destination;
   const mapKey = routeKey(pickup, destination);
   const [mapRoute, setMapRoute] = useState(null);
+  const liveDriver = useLiveDriverLocation(ride);
+  const [driverFocus, setDriverFocus] = useState(0);
 
   useEffect(() => {
     if (!mapKey) return undefined;
@@ -83,7 +86,12 @@ export default function ConnectedCustomerApp({ state, busy, error, syncError, on
     {error && <div className="pilotError" role="alert">{error}</div>}
     {storageError && <p className="profileStorageNotice" role="status">Не успяхме да запазим затварянето на курса. След презареждане може да се покаже отново.</p>}
   </>;
-  const map = <><RivoMap pickup={pickup} destination={isValidLocation(destination) ? destination : null} route={mapRoute?.key === mapKey && !mapRoute.isFallback ? mapRoute : null} onDestinationSelect={!ride && step === 1 ? places.mapSelect : undefined}/>{ride && <p className="connectedNote">Картата показва маршрута на курса. Местоположение на шофьора на живо още не е налично.</p>}</>;
+  const map = <><RivoMap pickup={pickup} destination={isValidLocation(destination) ? destination : null} route={mapRoute?.key === mapKey && !mapRoute.isFallback ? mapRoute : null} driverLocation={liveDriver.location} driverFocusSignal={driverFocus} onDestinationSelect={!ride && step === 1 ? places.mapSelect : undefined}/>{ride && <div className={`connectedGps ${liveDriver.status}`}>
+    <p data-testid="driver-location-status">{liveDriver.label}</p>
+    <span className="gpsAnnouncement" role="status">{liveDriver.status === "fresh" ? "GPS позицията е актуална" : liveDriver.status === "stale" ? "GPS позицията е остаряла" : "Няма актуална GPS позиция"}</span>
+    {liveDriver.location && <button onClick={() => setDriverFocus(value => value + 1)}><LocateFixed size={16}/> Покажи шофьора</button>}
+    <small>Обновява се, докато шофьорът споделя и RIVO е на екрана. Картата показва и маршрута на курса.</small>
+  </div>}</>;
   const quoteContent = <section aria-label="Предварителна цена" aria-live="polite">
     {quote.loading && <p className="muted" role="status">Изчисляваме маршрута и цената…</p>}
     {quote.error && <div className="pilotError" role="alert">{quote.error}<button disabled={busy} onClick={quote.retry}>Изчисли отново</button></div>}

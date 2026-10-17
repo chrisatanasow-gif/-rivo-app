@@ -2,6 +2,7 @@ import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from
 import { DEFAULT_TARIFF } from "../shared/fare.js";
 import { getRoadRoute, RouteError } from "./road-route.js";
 import { createFareQuotes, QuoteError } from "./fare-quote.js";
+import { GPS_VISIBLE_MS, GPS_SAMPLE_MAX_AGE_MS, validDriverPosition } from "../shared/driver-location.js";
 const COOKIE = "rivo_pilot_session";
 const ACTIVE = ["waiting", "accepted", "arrived", "in_progress"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -45,12 +46,18 @@ function participant(row) {
 }
 
 function ride(row) {
+  const tracking = ["accepted", "arrived", "in_progress"].includes(row.status);
+  const updatedAt = row.driver_location_updated_at;
+  const visible = tracking && row.driver_tracking_id && validDriverPosition(row.driver_location)
+    && Date.now() - new Date(updatedAt).getTime() < GPS_VISIBLE_MS;
   return {
     id: row.id, status: row.status, revision: row.revision, service: "rivo",
     pickup: row.pickup, destination: row.destination, vehicleType: row.vehicle_type,
     passengers: row.passengers, priceCents: row.price_cents, currency: "EUR", fare: row.fare_quote || null,
     customerName: row.customer_name,
     driver: row.driver_id ? { name: row.driver_name, vehicleModel: row.driver_model, vehiclePlate: row.driver_plate } : null,
+    driverTracking: Boolean(tracking && row.driver_tracking_id),
+    driverLocation: visible ? { lat: row.driver_location.lat, lng: row.driver_location.lng, accuracy: row.driver_location.accuracy, updatedAt } : null,
     createdAt: row.created_at, updatedAt: row.updated_at, expiresAt: row.expires_at
   };
 }
@@ -174,7 +181,7 @@ export function createPilotHandler({ query, accessCode, secureCookies = true, re
         return send(200, { ok: true });
       }
 
-      await expireWaiting();
+      if (!["tracking", "position"].includes(action)) await expireWaiting();
       if (action === "state" && req.method === "GET") {
         const mine = await query(`${SELECT_RIDES} WHERE r.${session.role === "customer" ? "customer_id" : "driver_id"} = $1 ORDER BY r.created_at DESC LIMIT 10`, [session.id]);
         const active = mine.find(row => ACTIVE.includes(row.status));
@@ -201,6 +208,45 @@ export function createPilotHandler({ query, accessCode, secureCookies = true, re
         return send(201, { ride: ride(await getRide(rows[0].id)) });
       }
 
+      if (["tracking", "position"].includes(action) && req.method === "POST") {
+        if (session.role !== "driver") throw new PilotError(403, "Само приелият шофьор може да споделя позиция.");
+        if (!UUID.test(body.rideId || "")) throw new PilotError(400, "Невалиден номер на курса.");
+        if (action === "tracking") {
+          if (!["start", "stop"].includes(body.command)) throw new PilotError(400, "Невалидно действие за GPS.");
+          if (body.command === "start" && !UUID.test(body.trackingId || "")) throw new PilotError(400, "Невалидна GPS сесия.");
+          if (body.trackingId != null && !UUID.test(body.trackingId)) throw new PilotError(400, "Невалидна GPS сесия.");
+          const start = body.command === "start";
+          const rows = await query(start
+            ? `UPDATE rivo_pilot_rides SET
+                driver_location = CASE WHEN driver_tracking_id = $3 THEN driver_location ELSE NULL END,
+                driver_location_updated_at = CASE WHEN driver_tracking_id = $3 THEN driver_location_updated_at ELSE NULL END,
+                driver_tracking_id = $3
+              WHERE id = $1 AND driver_id = $2 AND status IN ('accepted', 'arrived', 'in_progress') RETURNING id`
+            : `UPDATE rivo_pilot_rides SET driver_tracking_id = NULL, driver_location = NULL, driver_location_updated_at = NULL
+              WHERE id = $1 AND driver_id = $2 AND status IN ('accepted', 'arrived', 'in_progress')
+                AND ($3::uuid IS NULL OR driver_tracking_id = $3) RETURNING id`,
+          [body.rideId, session.id, body.trackingId || null]);
+          if (!rows[0]) throw new PilotError(409, "Курсът или GPS споделянето вече е променено. Обнови заявките.", "TRACKING_CONFLICT");
+          return send(200, { ok: true });
+        }
+        const point = body.position;
+        if (!UUID.test(body.trackingId || "") || !validDriverPosition(point)
+          || !Number.isSafeInteger(point?.sequence) || point.sequence < 1
+          || !Number.isFinite(point?.measuredAt) || Math.abs(Date.now() - point.measuredAt) > GPS_SAMPLE_MAX_AGE_MS) {
+          throw new PilotError(400, "Нужна е актуална GPS позиция с точност до 500 м.", "INVALID_POSITION");
+        }
+        const rows = await query(`UPDATE rivo_pilot_rides SET driver_location = $4::jsonb, driver_location_updated_at = now()
+          WHERE id = $1 AND driver_id = $2 AND driver_tracking_id = $3 AND status IN ('accepted', 'arrived', 'in_progress')
+            AND COALESCE((driver_location->>'sequence')::bigint, 0) < $5
+            AND (driver_location_updated_at IS NULL OR driver_location_updated_at <= now() - interval '2 seconds') RETURNING id`,
+        [body.rideId, session.id, body.trackingId, JSON.stringify({ lat: point.lat, lng: point.lng, accuracy: point.accuracy, measuredAt: point.measuredAt, sequence: point.sequence }), point.sequence]);
+        if (!rows[0]) {
+          const owned = await query("SELECT id FROM rivo_pilot_rides WHERE id = $1 AND driver_id = $2 AND driver_tracking_id = $3 AND status IN ('accepted', 'arrived', 'in_progress')", [body.rideId, session.id, body.trackingId]);
+          if (!owned[0]) throw new PilotError(409, "Курсът или GPS споделянето вече е променено. Обнови заявките.", "TRACKING_CONFLICT");
+        }
+        return send(200, { ok: true, accepted: Boolean(rows[0]) });
+      }
+
       if (action === "transition" && req.method === "POST") {
         if (!UUID.test(body.rideId || "")) throw new PilotError(400, "Невалиден номер на курса.");
         const transitions = {
@@ -214,7 +260,8 @@ export function createPilotHandler({ query, accessCode, secureCookies = true, re
         if (!change || change.role !== session.role) throw new PilotError(403, "Това действие не е разрешено.");
         const accepting = body.command === "accept";
         const ownership = accepting ? "expires_at > now()" : `${session.role === "customer" ? "customer_id" : "driver_id"} = $4`;
-        const rows = await query(`UPDATE rivo_pilot_rides SET status = $2, updated_at = now(), revision = revision + 1${accepting ? ", driver_id = $4" : ""}
+        const clearTracking = ["completed", "cancelled"].includes(change.to) ? ", driver_tracking_id = NULL, driver_location = NULL, driver_location_updated_at = NULL" : "";
+        const rows = await query(`UPDATE rivo_pilot_rides SET status = $2, updated_at = now(), revision = revision + 1${accepting ? ", driver_id = $4" : ""}${clearTracking}
           WHERE id = $1 AND status = ANY($3::text[]) AND ${ownership} RETURNING id`,
         [body.rideId, change.to, change.from, session.id]);
         if (!rows[0]) throw new PilotError(409, "Заявката вече е променена. Обнови списъка.", "RIDE_CONFLICT");
