@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { lazy, useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, CarFront, CircleDot, LogOut, MapPin, RefreshCw, Users } from "lucide-react";
 import { Button, Card, Header, Pill } from "../components/UI";
 import { pilotRequest } from "../services/pilotService";
@@ -6,10 +6,11 @@ import { searchAddresses } from "../services/geocodingService";
 import { useFareQuote } from "../services/useFareQuote.js";
 import { formatMoney } from "../../shared/fare.js";
 import FareBreakdown from "../components/FareBreakdown.jsx";
-import ConnectedCustomerApp from "./ConnectedCustomerApp.jsx";
 import DriverTracking from "../components/DriverTracking.jsx";
-import ConnectedDriverApp from "./ConnectedDriverApp.jsx";
 import "./pilot.css";
+
+const ConnectedCustomerApp = lazy(() => import("./ConnectedCustomerApp.jsx"));
+const ConnectedDriverApp = lazy(() => import("./ConnectedDriverApp.jsx"));
 
 const PRESETS = [
   { label: "Перник, Център", lat: 42.6052, lng: 23.0379 },

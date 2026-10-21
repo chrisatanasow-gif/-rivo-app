@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { CarFront, ChevronRight, History, LogOut, MapPin, Navigation2, RefreshCw, Users } from "lucide-react";
 import { Button, Card, Pill } from "../components/UI.jsx";
-import { DriverScreen } from "./DriverApp.jsx";
-import { CancelRideDialog } from "./CustomerApp.jsx";
+import DriverScreen from "../components/DriverScreen.jsx";
+import { CancelRideDialog } from "../components/BookingUI.jsx";
 import RivoMap from "../components/RivoMap.jsx";
 import DriverTracking from "../components/DriverTracking.jsx";
 import FareBreakdown from "../components/FareBreakdown.jsx";

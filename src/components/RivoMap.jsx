@@ -1,16 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
-import * as maplibregl from "maplibre-gl";
-import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
-import "maplibre-gl/dist/maplibre-gl.css";
 import { isValidLocation } from "../../shared/locations.js";
 import { createRivoMapStyle } from "./mapStyle.js";
 import "./RivoMap.css";
 
 const DEFAULT_CENTER = { lat: 42.6019, lng: 23.0334 };
-maplibregl.setWorkerUrl(mapWorkerUrl);
 
 export default function RivoMap({ pickup, destination, route, driverProgress, driverLocation, driverFocusSignal = 0, frameProgress, onDestinationSelect, onMapReady, recenterSignal, className = "" }) {
   const mapRef = useRef(null);
+  const mapEngineRef = useRef(null);
   const mapContainerRef = useRef(null);
   const pickupRef = useRef(null);
   const destinationRef = useRef(null);
@@ -20,6 +17,7 @@ export default function RivoMap({ pickup, destination, route, driverProgress, dr
   const [mapReady, setMapReady] = useState(false);
   const [mapLoading, setMapLoading] = useState(true);
   const [mapError, setMapError] = useState(false);
+  const [engineError, setEngineError] = useState(false);
   const [mapAttempt, setMapAttempt] = useState(0);
   const hasLiveDriver = isValidLocation(driverLocation);
 
@@ -31,72 +29,73 @@ export default function RivoMap({ pickup, destination, route, driverProgress, dr
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    let loadingTimeout;
+    let cancelled = false;
+    let failed = false;
+    let styleReady = false;
     let resizeObserver;
-
-    try {
-      const map = new maplibregl.Map({
-        container: mapContainerRef.current,
-        style: createRivoMapStyle(),
-        center: [DEFAULT_CENTER.lng, DEFAULT_CENTER.lat],
-        zoom: 12,
-        attributionControl: false,
-        pitchWithRotate: false,
-        preserveDrawingBuffer: true
-      });
-
-      mapRef.current = map;
-
-      map.addControl(new maplibregl.NavigationControl({ showCompass: false, showZoom: true }), "bottom-right");
-      map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
-      resizeObserver = new ResizeObserver(() => { if (mapRef.current === map) map.resize(); });
-      resizeObserver.observe(mapContainerRef.current);
-
-      let styleReady = false;
-      const failMap = () => {
-        if (styleReady) return;
-        window.clearTimeout(loadingTimeout);
-        setMapLoading(false);
-        setMapError(true);
-        setMapReady(false);
-        if (mapRef.current === map) {
-          map.remove();
-          mapRef.current = null;
-        }
-      };
-
-      map.on("load", () => {
-        styleReady = true;
-        window.clearTimeout(loadingTimeout);
-        setMapReady(true);
-        setMapLoading(false);
-        setMapError(false);
-        onMapReadyRef.current?.(map);
-      });
-
-      map.on("click", (event) => {
-        const { lng, lat } = event.lngLat;
-        onDestinationSelectRef.current?.({ lat, lng });
-      });
-
-      map.on("error", event => {
-        if (!styleReady) console.warn("RIVO map could not load", event.error?.message);
-        if (event.sourceId === "rivo-basemap") failMap();
-      });
-      loadingTimeout = window.setTimeout(failMap, 12000);
-    } catch (error) {
-      console.warn("RIVO map could not start", error.message);
+    const failMap = () => {
+      if (cancelled || styleReady) return;
+      failed = true;
       window.clearTimeout(loadingTimeout);
       resizeObserver?.disconnect();
       setMapLoading(false);
       setMapError(true);
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
+      setMapReady(false);
+      setEngineError(!mapEngineRef.current);
+      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
+    };
+    const loadingTimeout = window.setTimeout(failMap, 12000);
+    async function initialize() {
+      try {
+        const { maplibregl } = await import("./mapEngine.js");
+        if (cancelled || failed || !mapContainerRef.current) return;
+        mapEngineRef.current = maplibregl;
+        const map = new maplibregl.Map({
+          container: mapContainerRef.current,
+          style: createRivoMapStyle(),
+          center: [DEFAULT_CENTER.lng, DEFAULT_CENTER.lat],
+          zoom: 12,
+          attributionControl: false,
+          pitchWithRotate: false,
+          preserveDrawingBuffer: true
+        });
+
+        mapRef.current = map;
+
+        map.addControl(new maplibregl.NavigationControl({ showCompass: false, showZoom: true }), "bottom-right");
+        map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
+        resizeObserver = new ResizeObserver(() => { if (mapRef.current === map) map.resize(); });
+        resizeObserver.observe(mapContainerRef.current);
+
+        map.on("load", () => {
+          if (cancelled || failed) return;
+          styleReady = true;
+          window.clearTimeout(loadingTimeout);
+          setMapReady(true);
+          setMapLoading(false);
+          setMapError(false);
+          onMapReadyRef.current?.(map);
+        });
+
+        map.on("click", (event) => {
+          const { lng, lat } = event.lngLat;
+          onDestinationSelectRef.current?.({ lat, lng });
+        });
+
+        map.on("error", event => {
+          if (!styleReady) console.warn("RIVO map could not load", event.error?.message);
+          if (event.sourceId === "rivo-basemap") failMap();
+        });
+      } catch (error) {
+        if (cancelled || failed) return;
+        console.warn("RIVO map could not start", error.message);
+        failMap();
       }
     }
+    initialize();
 
     return () => {
+      cancelled = true;
       window.clearTimeout(loadingTimeout);
       resizeObserver?.disconnect();
       if (mapRef.current) {
@@ -120,6 +119,7 @@ export default function RivoMap({ pickup, destination, route, driverProgress, dr
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
+    const maplibregl = mapEngineRef.current;
 
     if (pickupRef.current) pickupRef.current.remove();
     if (destinationRef.current) destinationRef.current.remove();
@@ -175,13 +175,14 @@ export default function RivoMap({ pickup, destination, route, driverProgress, dr
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    updateDriverMarker(map, driverRef, route?.geometry?.coordinates, driverProgress, driverLocation);
+    updateDriverMarker(mapEngineRef.current, map, driverRef, route?.geometry?.coordinates, driverProgress, driverLocation);
   }, [route, mapReady, driverProgress, driverLocation]);
 
   useEffect(() => {
     const map = mapRef.current;
     const coordinates = route?.geometry?.coordinates;
     if (!map || !mapReady || !Array.isArray(coordinates) || coordinates.length < 2) return;
+    const maplibregl = mapEngineRef.current;
 
     const progress = Number.isFinite(driverProgress) ? clamp(driverProgress, 0, 1) : null;
     const progressIndex = progress === null ? 0 : Math.floor(progress * (coordinates.length - 1));
@@ -208,6 +209,7 @@ export default function RivoMap({ pickup, destination, route, driverProgress, dr
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady || !hasLiveDriver) return;
+    const maplibregl = mapEngineRef.current;
     if (driverFocusSignal) map.flyTo({ center: [driverLocation.lng, driverLocation.lat], zoom: 14, duration: 650 });
     else {
       const bounds = new maplibregl.LngLatBounds();
@@ -228,7 +230,7 @@ export default function RivoMap({ pickup, destination, route, driverProgress, dr
       <span className="mapUnavailableMark" aria-hidden="true">R</span>
       <b>Картата временно не е налична</b>
       <small>Можеш да избереш адрес от търсенето.</small>
-      <button type="button" onClick={() => { setMapError(false); setMapLoading(true); setMapReady(false); setMapAttempt(value => value + 1); }}>ЗАРЕДИ ОТНОВО</button>
+      <button type="button" onClick={() => { if (engineError) { window.location.reload(); return; } setMapError(false); setMapLoading(true); setMapReady(false); setMapAttempt(value => value + 1); }}>ЗАРЕДИ ОТНОВО</button>
     </div>;
   }
 
@@ -245,7 +247,7 @@ function locationMarker(kind, label) {
   return element;
 }
 
-function updateDriverMarker(map, markerRef, coordinates, progress, livePosition) {
+function updateDriverMarker(maplibregl, map, markerRef, coordinates, progress, livePosition) {
   const live = isValidLocation(livePosition);
   if (!live && (!Array.isArray(coordinates) || coordinates.length < 2 || !Number.isFinite(progress))) {
     if (markerRef.current) {

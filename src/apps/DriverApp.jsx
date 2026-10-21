@@ -1,18 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { MessageCircle, Phone } from "lucide-react";
-import { Button, Card, Header, MapMock, Pill, VehicleImage } from "../components/UI";
+import { Button, Card, MapMock, Pill, VehicleImage } from "../components/UI";
 import { DEMO_DRIVER_VEHICLE } from "../data/mockData";
 import { calculateFare, formatMoney } from "../../shared/fare.js";
-import "./DriverApp.css";
-
-export function DriverScreen({ title, right, onBack, className = "", centered = false, actions, overlay, children }) {
-  return <section className={`driverScreen ${className}`} aria-label="Шофьорско приложение">
-    <Header title={title} right={right} onBack={onBack}/>
-    <main className={`content driverContent${centered ? " centered" : ""}`}>{children}</main>
-    <footer className="driverActions">{actions}</footer>
-    {overlay}
-  </section>;
-}
+import DriverScreen from "../components/DriverScreen.jsx";
 
 export default function DriverApp({ close, tariff, toast }) {
   const [screen, setScreen] = useState("home");

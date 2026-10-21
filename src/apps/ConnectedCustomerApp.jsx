@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { History, LocateFixed, LogOut, RefreshCw, Users } from "lucide-react";
 import { Button, Card, Pill } from "../components/UI.jsx";
-import { AddressField, AddressSuggestions, CancelRideDialog, CustomerScreen, Stepper } from "./CustomerApp.jsx";
+import { AddressField, AddressSuggestions, CancelRideDialog, CustomerScreen, Stepper } from "../components/BookingUI.jsx";
 import RivoMap from "../components/RivoMap.jsx";
 import FareBreakdown from "../components/FareBreakdown.jsx";
 import useBookingPlaces from "../services/useBookingPlaces.js";

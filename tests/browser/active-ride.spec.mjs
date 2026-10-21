@@ -22,8 +22,9 @@ const read = page => page.evaluate(key => JSON.parse(localStorage.getItem(key)),
 
 for (const [width, height] of [[320, 568], [390, 844]]) test(`reload restores each active stage and frozen discount with no duplicate history at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height });
-  await page.clock.install({ time: TIME });
-  await page.clock.pauseAt(new Date(TIME.getTime() + 100));
+  // Keep the business date deterministic without freezing React's async-loading
+  // scheduler or requestAnimationFrame. Only lifecycle timestamps move below.
+  await page.clock.setFixedTime(TIME);
   await fixtures(page, false);
   await book(page, true);
   await expect(page.locator(".customerMatching")).toBeVisible();
@@ -33,7 +34,7 @@ for (const [width, height] of [[320, 568], [390, 844]]) test(`reload restores ea
   await expect(page.locator(".customerMatching")).toBeVisible();
   await expect(page.locator(".rideRecoveryNotice")).toBeVisible();
   expect((await read(page)).id).toBe(saved.id);
-  await page.clock.fastForward(1200);
+  await page.clock.setFixedTime(new Date(saved.bookedAt + 1200));
   await page.getByRole("button", { name: "ДЕМО: ШОФЬОРЪТ ПРИСТИГНА" }).click();
   await page.context().setGeolocation({ latitude: 42.6977, longitude: 23.3219 });
   await page.context().route("https://router.project-osrm.org/**", route => route.fulfill({ status: 503, body: "Route provider down after booking" }));
@@ -42,7 +43,8 @@ for (const [width, height] of [[320, 568], [390, 844]]) test(`reload restores ea
   await expect(page.locator(".arrivalStatus")).toHaveText("ШОФЬОРЪТ ПРИСТИГНА");
   await expect(page.locator(".pickupSummary")).toContainText(saved.pickup.label);
   await page.getByRole("button", { name: "ДЕМО: ЗАПОЧНИ ПЪТУВАНЕТО" }).click();
-  await page.clock.fastForward(5000);
+  const started = await read(page);
+  await page.clock.setFixedTime(new Date(started.tripStartedAt + 5000));
   await expect(page.locator(".progress i")).toHaveAttribute("style", "width: 30%;");
   await page.reload();
   await expect(page.locator(".customerTrip")).toBeVisible();

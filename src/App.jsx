@@ -1,11 +1,13 @@
-import React, { useState } from "react";
-import CustomerApp from "./apps/CustomerApp";
-import DriverApp from "./apps/DriverApp";
-import AdminApp from "./apps/AdminApp";
+import React, { lazy, useState } from "react";
+import AppLoadBoundary from "./components/AppLoadBoundary.jsx";
 import { Toast } from "./components/UI";
 import { load, save } from "./lib/storage";
-import PilotApp from "./apps/PilotApp";
 import { DEFAULT_TARIFF, calculateFare } from "../shared/fare.js";
+
+const CustomerApp = lazy(() => import("./apps/CustomerApp.jsx"));
+const DriverApp = lazy(() => import("./apps/DriverApp.jsx"));
+const AdminApp = lazy(() => import("./apps/AdminApp.jsx"));
+const PilotApp = lazy(() => import("./apps/PilotApp.jsx"));
 
 function loadTariff() {
   const stored = load("rivoTariffV2", null) || load("rivoTariffsV1", null)?.city || DEFAULT_TARIFF;
@@ -15,9 +17,9 @@ function loadTariff() {
 
 export default function App() {
   const path = window.location.pathname.replace(/\/$/, "");
-  if (path === "/ride") return <PilotApp customerUi="rivo"/>;
-  if (path === "/drive") return <PilotApp driverUi="rivo"/>;
-  return path === "/pilot" ? <PilotApp/> : <PrototypeApp/>;
+  return <AppLoadBoundary>
+    {path === "/ride" ? <PilotApp customerUi="rivo"/> : path === "/drive" ? <PilotApp driverUi="rivo"/> : path === "/pilot" ? <PilotApp/> : <PrototypeApp/>}
+  </AppLoadBoundary>;
 }
 
 function PrototypeApp() {
