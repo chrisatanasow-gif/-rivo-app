@@ -1,7 +1,10 @@
 # Email accounts and driver review
 
 `/account` signs in with a six-digit email code. A new verified identity creates
-one permanent RIVO account; its display name is completed in RIVO. `/account/ride`
+one permanent RIVO account; its display name is completed in RIVO. The compact
+profile links to booking and optional driver application at
+`/account/driver-application`. See [onboarding and pickup](onboarding-and-pickup.md).
+`/account/ride`
 and `/account/drive` reuse the connected booking, dispatch, fare and GPS flows.
 The same verified identity on another browser restores the same participants,
 active ride and recent history. Account creation alone never grants driver or

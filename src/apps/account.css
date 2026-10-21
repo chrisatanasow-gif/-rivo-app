@@ -21,3 +21,16 @@
 .accountReview dt { color: #9c9da7; }
 .accountReview dd { margin: 0; overflow-wrap: anywhere; }
 .accountSaved { color: #b5e6c4; }
+.accountProfileCard { padding: 19px; display: grid; gap: 8px; }
+.accountProfileCard .accountHeading { margin-bottom: 4px; }
+.accountProfileCard .accountTextButton { justify-self: start; }
+.accountVerified { display: flex; gap: 9px; align-items: flex-start; color: #b9bfc8; font-size: 14px; line-height: 1.5; }
+.accountVerified svg { color: #b5e6c4; flex-shrink: 0; margin-top: 2px; }
+.accountVerified span { overflow-wrap: anywhere; min-width: 0; }
+.accountOption { display: flex; align-items: center; gap: 14px; min-height: 82px; padding: 17px; border: 1px solid #292b31; border-radius: 20px; background: #111216; color: #fff; text-decoration: none; }
+.accountOption > svg { color: #ffdb16; flex-shrink: 0; }
+.accountOption > span { flex: 1; min-width: 0; display: grid; gap: 6px; }
+.accountOption b { font-size: 17px; }
+.accountOption small { color: #aeb2bb; line-height: 1.4; }
+.accountConnection { display: grid; gap: 18px; padding: 23px; }
+.accountConnection > svg { color: #ffdb16; }

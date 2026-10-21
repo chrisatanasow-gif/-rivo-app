@@ -1,26 +1,28 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { isValidLocation } from "../../shared/locations.js";
 import { reverseGeocode, searchAddresses } from "./geocodingService.js";
 import { localPlaceSuggestions, mergePlaceSuggestions, remotePlaceSuggestions, MIN_SUGGESTION_LENGTH } from "./placeSuggestions.js";
+import { requestPickupLocation } from "./pickupLocation.js";
 
-export default function useBookingPlaces() {
-  const [pickup, setPickup] = useState({ label: "Перник, Център", lat: 42.6052, lng: 23.0379 });
+export default function useBookingPlaces({ requirePickup = false } = {}) {
+  const [pickup, setPickup] = useState(() => requirePickup ? { label: "", lat: null, lng: null } : { label: "Перник, Център", lat: 42.6052, lng: 23.0379 });
   const [destination, setDestination] = useState({ label: "", lat: null, lng: null });
-  const [active, setActive] = useState("destination");
+  const [active, setActive] = useState(requirePickup ? "pickup" : "destination");
   const [results, setResults] = useState([]);
   const [status, setStatus] = useState("idle");
   const [option, setOption] = useState(-1);
   const [resolving, setResolving] = useState(false);
+  const [gps, setGps] = useState({ status: "idle", message: "" });
   const pending = useRef({ version: 0 });
 
-  function invalidate() {
+  const invalidate = useCallback(() => {
     const current = pending.current;
     current.version++;
     clearTimeout(current.timer);
     current.controller?.abort();
-    setResults([]); setStatus("idle"); setOption(-1); setResolving(false);
+    setResults([]); setStatus("idle"); setOption(-1); setResolving(false); setGps({ status: "idle", message: "" });
     return current.version;
-  }
+  }, []);
   useEffect(() => () => {
     pending.current.version++;
     clearTimeout(pending.current.timer);
@@ -79,9 +81,40 @@ export default function useBookingPlaces() {
     setResolving(true);
     try {
       const place = await reverseGeocode(point);
-      if (version === pending.current.version && place) (field === "pickup" ? setPickup : setDestination)(place);
+      if (version === pending.current.version && place) (field === "pickup" ? setPickup : setDestination)({ ...place, ...point });
     } catch { /* The selected coordinates remain usable when address lookup fails. */ }
     finally { if (version === pending.current.version) setResolving(false); }
+  }
+  async function locatePickup() {
+    const version = invalidate();
+    setResolving(true); setGps({ status: "loading", message: "Намираме мястото ти…" });
+    const result = await requestPickupLocation();
+    if (version !== pending.current.version) return;
+    if (result.status !== "ready") {
+      const messages = {
+        denied: "Достъпът до местоположение е отказан. Избери адрес или точка на картата.",
+        timeout: "Местоположението не се откри навреме. Опитай пак или избери адрес.",
+        inaccurate: "GPS мястото е твърде неточно. Избери точната точка на картата или въведи адрес.",
+        unavailable: "Местоположението не е достъпно. Избери адрес или точка на картата."
+      };
+      setGps({ status: "error", message: messages[result.status] }); setResolving(false);
+      return;
+    }
+    const point = result.location;
+    setPickup(point); setActive("pickup");
+    setGps({ status: "loading", message: "Разпознаваме адреса. Точката е избрана по GPS." });
+    try {
+      const place = await reverseGeocode(point);
+      if (version !== pending.current.version) return;
+      // A street lookup labels the measured point; it must not move the pickup.
+      if (place) setPickup({ ...place, lat: point.lat, lng: point.lng });
+    } catch { /* Measured coordinates remain usable without a street label. */ }
+    finally {
+      if (version === pending.current.version) {
+        setResolving(false);
+        setGps({ status: "ready", message: `Мястото е избрано по GPS · точност около ${Math.max(1, Math.round(result.accuracy))} м. Провери точката на картата.` });
+      }
+    }
   }
   function keyDown(event, field) {
     if (event.key === "Escape") { invalidate(); return; }
@@ -91,5 +124,5 @@ export default function useBookingPlaces() {
       setOption(value => (value + (event.key === "ArrowDown" ? 1 : -1) + results.length) % results.length);
     } else if (event.key === "Enter" && option >= 0) { event.preventDefault(); choose(field, results[option]); }
   }
-  return { pickup, destination, active, results, status, option, resolving, choose, edit, focus, search, mapSelect, keyDown };
+  return { pickup, destination, active, results, status, option, resolving, gps, locatePickup, cancelLookup: invalidate, choose, edit, focus, search, mapSelect, keyDown };
 }

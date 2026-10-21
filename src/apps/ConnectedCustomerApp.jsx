@@ -36,7 +36,8 @@ function Price({ fare, priceCents }) {
 }
 
 export default function ConnectedCustomerApp({ state, busy, error, syncError, onRefresh, onCreate, onTransition, onLogout }) {
-  const places = useBookingPlaces();
+  const member = Boolean(state.participant.accountId);
+  const places = useBookingPlaces({ requirePickup: member });
   const [step, setStep] = useState(1);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -66,6 +67,9 @@ export default function ConnectedCustomerApp({ state, busy, error, syncError, on
     return () => { active = false; };
   }, [mapKey]);
   useEffect(() => { setCancelOpen(false); }, [ride?.id, ride?.status]);
+  useEffect(() => {
+    if (step !== 1 || historyOpen || ride) places.cancelLookup();
+  }, [step, historyOpen, ride?.id, places.cancelLookup]);
   useEffect(() => {
     document.querySelector(".connectedCustomer .customerContent")?.scrollTo(0, 0);
   }, [step, historyOpen, ride?.id, ride?.status]);
@@ -120,6 +124,12 @@ export default function ConnectedCustomerApp({ state, busy, error, syncError, on
     {notices}
     <div><span className="eyebrow">СТЪПКА {step} ОТ 3</span><h1>{step === 1 ? "Къде отиваме?" : step === 2 ? "Детайли за курса" : "Потвърди заявката"}</h1></div>
     {step === 1 ? <>
+      {member && <section className="pickupLocation" aria-label="Избор на място за взимане">
+        <button type="button" className="pickupLocationButton" disabled={busy} onClick={places.gps.status === "loading" ? places.cancelLookup : places.locatePickup}>
+          <LocateFixed size={19}/><span>{places.gps.status === "loading" ? "ОТКАЖИ ЛОКАЛИЗИРАНЕТО" : "ИЗПОЛЗВАЙ МОЕТО МЯСТО"}</span>
+        </button>
+        <p className={`pickupLocationHint ${places.gps.status}`} role="status">{places.gps.message || "Разрешението за GPS се иска само при натискане. Можеш да избереш и адрес или точка на картата."}</p>
+      </section>}
       <Card className="routeEditor">{["pickup", "destination"].map(field => <React.Fragment key={field}>
         <AddressField field={field} location={places[field]} active={places.active === field} onFocus={() => places.focus(field)} onChange={label => places.edit(field, label)} onSearch={places.search} searching={places.active === field && places.status === "loading"} suggestions={places.active === field ? places.results : []} activeOption={places.option} onKeyDown={event => places.keyDown(event, field)}/>
         {places.active === field && <AddressSuggestions field={field} results={places.results} status={places.status} activeOption={places.option} onSelect={place => places.choose(field, place)}/>}

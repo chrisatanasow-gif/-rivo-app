@@ -16,6 +16,8 @@ database and a server-only invitation code.
 Permanent verified-email profiles are available at `/account`, with account-linked
 rides and manual driver approval. See [email accounts](docs/email-accounts.md) for
 setup, permissions, verification and the boundary with invitation testing.
+See [onboarding and GPS pickup](docs/onboarding-and-pickup.md) for first sign-in,
+the separate driver application and explicit passenger pickup selection.
 
 Screens and the map engine load on demand. See [mobile loading](docs/mobile-loading.md)
 for measurements, failure recovery and the scope of the performance checks.
