@@ -110,7 +110,7 @@ export default function ConnectedCustomerApp({ state, busy, error, syncError, on
   </CustomerScreen>;
 
   if (historyOpen) return <CustomerScreen title="Общи заявки" onBack={() => setHistoryOpen(false)} className="connectedCustomer">
-    {notices}<h1>Последни заявки</h1><p className="connectedNote">До 10 заявки от тази тестова сесия. Демо курсовете са отделно.</p>
+    {notices}<h1>Последни заявки</h1><p className="connectedNote">{state.participant.accountId ? "Последните 10 заявки от профила ти. Пазят се и след ново влизане." : "До 10 заявки от тази тестова сесия. Демо курсовете са отделно."}</p>
     {state.rides.length === 0 && <Card className="connectedSummary"><p className="muted">Още няма общи заявки.</p></Card>}
     {state.rides.map(item => <Card key={item.id} className="connectedSummary"><b>{STAGES[item.status][1]}</b><p>{item.pickup.label} → {item.destination.label}</p><strong className="yellow">{formatMoney(item.priceCents)}</strong><small>№ {item.id.slice(0, 8).toUpperCase()}</small></Card>)}
   </CustomerScreen>;
@@ -128,6 +128,7 @@ export default function ConnectedCustomerApp({ state, busy, error, syncError, on
       {map}
       <button className="connectedPlace" onClick={() => places.choose(places.active, { label: "Перник, Изток", lat: 42.6048, lng: 23.0422 })}>Перник, Изток <span>Избери за {places.active === "pickup" ? "взимане" : "дестинация"}</span></button>
       <div className="connectedSession"><span>Здравей, {state.participant.name}</span><button aria-label="Общи заявки" onClick={() => setHistoryOpen(true)}><History size={18}/></button><button aria-label="Изход" disabled={busy} onClick={onLogout}><LogOut size={18}/></button></div>
+      {state.participant.accountId && <a className="driverLiveLink" href="/account">Моят профил</a>}
       <a className="pilotBack" href="/">Към демо дизайна</a>
     </> : <>
       <TripSummary ride={{ pickup, destination, passengers }}/>

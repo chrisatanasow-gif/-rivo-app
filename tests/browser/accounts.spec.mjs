@@ -62,6 +62,9 @@ test("driver applies, authorized reviewer approves, driver queue opens", async (
   await expect(page.getByText("Одобрен шофьор", { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "КЪМ ЗАЯВКИТЕ" }).click();
   await expect(page.getByText("Новите заявки са заключени до валидно одобрение.")).toHaveCount(0);
-  await expect(page.locator(".accountNav")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Моят профил", exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 320, height: 568 });
+  const action = await page.getByRole("button", { name: "ОБНОВИ ЗАЯВКИТЕ", exact: true }).boundingBox();
+  expect(action.y + action.height).toBeLessThanOrEqual(568);
   await ownerContext.close();
 });

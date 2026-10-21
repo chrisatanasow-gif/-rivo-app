@@ -62,6 +62,7 @@ export default function ConnectedDriverApp({ state, busy, error, syncError, onRe
   const notices = <>
     <div className={`pilotSync ${syncError ? "offline" : ""}`} role="status"><span>{syncError || "Свързано · заявките се обновяват"}</span><button aria-label="Обнови заявките" disabled={busy && !syncError} onClick={onRefresh}><RefreshCw size={15}/></button></div>
     {error && <div className="pilotError" role="alert">{error}</div>}
+    {state.participant.accountId && !state.participant.canAccept && <p className="pilotNote" role="status">Новите заявки са заключени до валидно одобрение.</p>}
     {storageError && <p className="pilotError" role="status">Не успяхме да запазим затварянето на курса. След презареждане може да се покаже отново.</p>}
   </>;
   const note = <p className="driverActionNote">Затворен тест · без плащания</p>;
@@ -101,7 +102,7 @@ export default function ConnectedDriverApp({ state, busy, error, syncError, onRe
   </DriverScreen>;
 
   if (historyOpen) return <DriverScreen title="МОИТЕ КУРСОВЕ" onBack={() => setHistoryOpen(false)} className="connectedDriver" actions={<><Button onClick={() => setHistoryOpen(false)}>КЪМ ЗАЯВКИТЕ</Button>{note}</>}>
-    {notices}<h1>Последни тестови курсове</h1><p className="connectedDriverNote">До 10 заявки от тази сесия. Сумите са тестови оценки, без изплатени приходи.</p>
+    {notices}<h1>Последни тестови курсове</h1><p className="connectedDriverNote">{state.participant.accountId ? "Последните 10 заявки от профила ти. Пазят се и след ново влизане." : "До 10 заявки от тази сесия."} Сумите са тестови оценки, без изплатени приходи.</p>
     {history.length === 0 && <Card className="connectedDriverEmpty"><History size={28}/><p>Още няма приключили курсове.</p></Card>}
     {history.map(item => <Card className="connectedDriverHistory" key={item.id}><b>{STATUS[item.status]}</b><span>{item.pickup.label} → {item.destination.label}</span><strong>{formatMoney(item.priceCents)}</strong><small>№ {item.id.slice(0, 8).toUpperCase()}</small></Card>)}
   </DriverScreen>;
@@ -109,6 +110,7 @@ export default function ConnectedDriverApp({ state, busy, error, syncError, onRe
   return <DriverScreen title="RIVO DRIVER" right={<Pill>ТЕСТ</Pill>} className="connectedDriver driverHome" actions={<><Button disabled={busy} onClick={onRefresh}>ОБНОВИ ЗАЯВКИТЕ</Button>{note}</>}>
     {notices}<div className="driverIntro"><h1>Здравей, {state.participant.name}</h1><p className="muted">Приемай общи заявки от пътниците в теста.</p></div>
     <Card className="connectedDriverVehicle"><CarFront size={28}/><span><b>{state.participant.vehicleModel}</b><small>{state.participant.vehiclePlate}</small></span><button aria-label="Изход" className="iconBtn" disabled={busy} onClick={onLogout}><LogOut size={18}/></button></Card>
+    {state.participant.accountId && <a className="driverLiveLink" href="/account">Моят профил</a>}
     <div className="spaceBetween"><span className="eyebrow">НОВИ ЗАЯВКИ · {state.requests.length}</span><button className="driverHistoryButton" onClick={() => setHistoryOpen(true)}><History size={16}/> История</button></div>
     {state.requests.length === 0 && <Card className="connectedDriverEmpty"><CarFront size={32}/><h2>Изчакваме пътник</h2><p>Новите заявки ще се появят тук автоматично.</p></Card>}
     {state.requests.map(item => <button className="card connectedDriverRequest" key={item.id} aria-label={`Прегледай заявката на ${item.customerName}`} disabled={busy} onClick={() => setSelectedId(item.id)}><span><small>{item.customerName}</small><b>{item.pickup.label}</b><small>към {item.destination.label}</small></span><strong>{formatMoney(item.priceCents)}</strong><ChevronRight size={19}/></button>)}

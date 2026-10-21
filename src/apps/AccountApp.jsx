@@ -1,5 +1,5 @@
 import React, { lazy, useEffect, useRef, useState } from "react";
-import { ArrowRight, CarFront, CheckCircle2, LogOut, Mail, RefreshCw, ShieldCheck, UserRound } from "lucide-react";
+import { ArrowRight, CarFront, CheckCircle2, LogOut, Mail, RefreshCw, ShieldCheck } from "lucide-react";
 import { Button, Card, Header, Pill } from "../components/UI";
 import { accountRequest, sendCode, signOut, verifyCode } from "../services/accountService.js";
 import { accountDate } from "../../shared/account-date.js";
@@ -111,10 +111,7 @@ export default function AccountApp() {
     return () => { mounted.current = false; };
   }, []);
   const riding = data?.profile.name && ["/account/ride", "/account/drive"].includes(path);
-  if (riding && (path === "/account/ride" || data.application)) return <>
-    <nav className="accountNav"><a href="/account"><UserRound size={16}/> Моят профил</a></nav>
-    <PilotApp customerUi={path === "/account/ride" ? "rivo" : undefined} driverUi={path === "/account/drive" ? "rivo" : undefined} member/>
-  </>;
+  if (riding && (path === "/account/ride" || data.application)) return <PilotApp customerUi={path === "/account/ride" ? "rivo" : undefined} driverUi={path === "/account/drive" ? "rivo" : undefined} member/>;
   return <div className="shell"><div className="app pilotApp accountApp"><Header logo right={<Pill>ПРОФИЛ</Pill>}/><main className="content pilotContent">
     {error && <div role="alert" className="pilotError">{error}<button type="button" disabled={busy} onClick={() => run(refresh)}>Опитай отново</button></div>}
     {loading ? <p role="status" className="muted">Възстановяваме профила…</p> : !data ? <Login onSuccess={refresh} run={run} busy={busy}/> : <>

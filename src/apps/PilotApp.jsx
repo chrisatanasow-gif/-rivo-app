@@ -240,7 +240,6 @@ export default function PilotApp({ customerUi, driverUi, member = false }) {
       onRefresh={() => refresh()} onCreate={body => run("create", body)} onTransition={(rideId, command) => run("transition", { rideId, command })} onLogout={() => run("logout", {})}/>
   </div></div>;
   if (driverUi === "rivo" && participant?.role === "driver" && state) return <div className="shell"><div className="app">
-    {member && !state.participant.canAccept && <p className="pilotNote" role="status">Новите заявки са заключени до валидно одобрение.</p>}
     <ConnectedDriverApp state={state} busy={busy || Boolean(syncError)} error={error} syncError={syncError}
       onRefresh={() => refresh()} onTransition={(rideId, command) => run("transition", { rideId, command })} onLogout={() => run("logout", {})}/>
   </div></div>;
