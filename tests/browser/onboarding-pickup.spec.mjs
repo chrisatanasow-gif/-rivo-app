@@ -121,6 +121,39 @@ test("an accepted OTP survives a failed profile load without reusing the consume
   await expect(select(page, "Взимане")).toHaveValue("");
 });
 
+test("the account screen and restored profile do not download the OTP SDK", async ({ page }) => {
+  const modules = [];
+  page.on("request", request => { if (/\/accountAuth-[^/]+\.js/.test(request.url())) modules.push(request.url()); });
+  await page.goto("/account"); await expect(page.getByLabel("Имейл", { exact: true })).toBeVisible();
+  expect(modules).toHaveLength(0);
+  await login(page, "/account"); expect(modules).toHaveLength(1);
+  modules.length = 0; await page.reload();
+  await expect(page.getByRole("heading", { name: "Здравей, Пътник Начало." })).toBeVisible();
+  expect(modules).toHaveLength(0);
+});
+
+test("a stalled OTP request times out with an actionable error", async ({ page }) => {
+  await page.goto("/account"); await page.getByLabel("Имейл", { exact: true }).fill("onboard-timeout@example.invalid");
+  await page.route("**/api/auth/email-otp/send-verification-otp", () => {});
+  await page.getByRole("button", { name: "ИЗПРАТИ МИ КОД" }).click();
+  await expect(page.getByRole("alert")).toContainText("Няма връзка с входа на RIVO", { timeout: 20000 });
+  await expect(page.getByRole("button", { name: "ИЗПРАТИ МИ КОД" })).toBeEnabled();
+  await expect(page.getByLabel("Имейл", { exact: true })).toHaveValue("onboard-timeout@example.invalid");
+});
+
+test("an auth module download failure has an explicit reload recovery", async ({ page }) => {
+  await page.goto("/account");
+  await page.route("**/assets/accountAuth-*.js", route => route.abort("failed"));
+  await page.getByLabel("Имейл", { exact: true }).fill("onboard-module@example.invalid");
+  await page.getByRole("button", { name: "ИЗПРАТИ МИ КОД" }).click();
+  await expect(page.getByRole("alert")).toContainText("Входът не успя да се зареди");
+  await page.unroute("**/assets/accountAuth-*.js");
+  await page.getByRole("button", { name: "Обнови страницата", exact: true }).click();
+  await page.getByLabel("Имейл", { exact: true }).fill("onboard-module@example.invalid");
+  await page.getByRole("button", { name: "ИЗПРАТИ МИ КОД" }).click();
+  await expect(page.getByLabel("Код от имейла")).toBeVisible();
+});
+
 test("GPS keeps exact measured coordinates through address lookup, quote and create", async ({ page, context }, info) => {
   await context.grantPermissions(["geolocation"]); await context.setGeolocation({ latitude: 42.61, longitude: 23.05, accuracy: 12 });
   await login(page); await gpsButton(page).click();

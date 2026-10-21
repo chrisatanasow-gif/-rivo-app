@@ -1,7 +1,12 @@
-import { createAuthClient } from "@neondatabase/auth";
-
-const auth = createAuthClient(`${window.location.origin}/api/auth`, { fetchOptions: { timeout: 15000, credentials: "same-origin" } });
+let authModule;
+const loadAuth = () => authModule ||= import("./accountAuth.js").catch(() => {
+  authModule = null;
+  const problem = new Error("Входът не успя да се зареди. Обнови страницата и опитай отново.");
+  problem.code = "AUTH_LOAD_FAILED";
+  throw problem;
+});
 function authProblem(error) {
+  if (error?.code === "AUTH_LOAD_FAILED") return error;
   const status = error?.status;
   const message = status === 429 ? "Твърде много опити. Изчакай и опитай отново." : status >= 400 && status < 500 && error.message ? error.message : "Няма връзка с входа на RIVO. Опитай отново.";
   const problem = new Error(message);
@@ -10,18 +15,18 @@ function authProblem(error) {
 }
 async function authCall(call) {
   let result;
-  try { result = await call(); }
+  try { const { default: auth } = await loadAuth(); result = await call(auth); }
   catch (error) { throw authProblem(error); }
   if (result.error) throw authProblem(result.error);
 }
 export async function sendCode(email) {
-  await authCall(() => auth.emailOtp.sendVerificationOtp({ email, type: "sign-in" }));
+  await authCall(auth => auth.emailOtp.sendVerificationOtp({ email, type: "sign-in" }));
 }
 export async function verifyCode(email, otp) {
-  await authCall(() => auth.signIn.emailOtp({ email, otp }));
+  await authCall(auth => auth.signIn.emailOtp({ email, otp }));
 }
 export async function signOut() {
-  await authCall(() => auth.signOut());
+  await authCall(auth => auth.signOut());
 }
 export async function accountRequest(action = "profile", body, { signal } = {}) {
   const controller = new AbortController();

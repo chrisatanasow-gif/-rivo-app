@@ -17,6 +17,11 @@ failed profile read uses profile recovery instead of retrying the consumed code.
 Profile/application saves render the server-confirmed response without a second
 read that could misreport a successful save as a failure.
 
+The Neon Auth SDK is loaded only for sending/verifying a code or signing out.
+The profile and restored booking do not wait for its roughly 152 KB raw / 45 KB
+gzip module. The 15-second request deadline is configured on the SDK's vanilla
+adapter; a failed module download has an explicit page-reload recovery.
+
 ## Choosing a real pickup
 
 Member booking has no assumed pickup from Pernik's centre. The passenger chooses

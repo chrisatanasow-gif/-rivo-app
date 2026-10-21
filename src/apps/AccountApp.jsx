@@ -121,6 +121,7 @@ export default function AccountApp() {
   const [loadState, setLoadState] = useState("loading");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [reloadAuth, setReloadAuth] = useState(false);
   const [saved, setSaved] = useState(false);
   const lock = useRef(false);
   const mounted = useRef(true);
@@ -140,8 +141,8 @@ export default function AccountApp() {
   }, []);
   const run = useCallback(async task => {
     if (lock.current) return;
-    lock.current = true; setBusy(true); setError(""); setSaved(false);
-    try { await task(); } catch (e) { if (mounted.current) { setError(e.message); if (e.status === 401) { version.current++; setData(null); setLoadState("signedOut"); } } }
+    lock.current = true; setBusy(true); setError(""); setReloadAuth(false); setSaved(false);
+    try { await task(); } catch (e) { if (mounted.current) { setError(e.message); setReloadAuth(e.code === "AUTH_LOAD_FAILED"); if (e.status === 401) { version.current++; setData(null); setLoadState("signedOut"); } } }
     finally { lock.current = false; if (mounted.current) setBusy(false); }
   }, []);
   useEffect(() => {
@@ -163,7 +164,7 @@ export default function AccountApp() {
   const riding = data?.profile.name && ["/account/ride", "/account/drive"].includes(path);
   if (riding && (path === "/account/ride" || data.application)) return <PilotApp customerUi={path === "/account/ride" ? "rivo" : undefined} driverUi={path === "/account/drive" ? "rivo" : undefined} member/>;
   return <div className="shell"><div className="app pilotApp accountApp"><Header logo right={<Pill>ПРОФИЛ</Pill>}/><main className="content pilotContent">
-    {error && loadState !== "unavailable" && <div role="alert" className="pilotError">{error}</div>}
+    {error && loadState !== "unavailable" && <div role="alert" className="pilotError">{error}{reloadAuth && <button type="button" onClick={() => window.location.reload()}>Обнови страницата</button>}</div>}
     {loadState === "loading" ? <p role="status" className="muted">Възстановяваме профила…</p> : loadState === "unavailable" ? <Card className="accountConnection"><RefreshCw size={28}/><h1>Да възстановим връзката.</h1><p role="alert" className="muted">{error || "Профилът временно не е достъпен."}</p><Button disabled={busy} onClick={() => run(refresh)}>{busy ? "СВЪРЗВАМЕ СЕ…" : "ОПИТАЙ ОТНОВО"}</Button></Card> : !data ? <Login driver={["/account/drive", "/account/driver-application"].includes(path)} onSuccess={completeSignIn} run={run} busy={busy}/> : <>
       {!data.profile.name ? <>
         <div className="accountIdentity"><span className="accountSymbol"><CheckCircle2 size={28}/></span><div><span className="eyebrow">ПОТВЪРДЕН ИМЕЙЛ</span><p>{data.profile.email}</p></div></div>
