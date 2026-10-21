@@ -8,6 +8,7 @@ import { createAccounts } from "../server/accounts.js";
 import { createPilotHandler } from "../server/pilot-handler.js";
 import { authFixture } from "./helpers/auth-fixture.mjs";
 import { memberQuery } from "../server/member-query.js";
+import { createRideAlerts } from "../server/ride-alerts.js";
 
 let db, provider, auth, accounts, rides, legacy;
 const query = async (sql, params) => (await db.query(sql, params)).rows;
@@ -32,19 +33,25 @@ async function createRide(cookie, handler = rides) { const body = draft(); const
 const application = () => ({ legalName: "Шофьор Тест", phone: "+359888123456", vehicleModel: "Тестов автомобил", vehiclePlate: "PK 1234 AA", certificateNumber: "TEST-CERT-123", permitNumber: "TEST-PERMIT-123", permitValidUntil: "2027-12-31", licensed: true });
 async function apply(cookie) { const response = await accountReq("apply", application(), cookie); assert.equal(response.status, 200); return response.data.application; }
 async function review(owner, app, status = "approved", extra = {}) { return accountReq("review", { accountId: app.accountId, revision: app.revision, status, documentsChecked: true, note: "Проверени тестови документи", ...extra }, owner); }
+async function online(cookie) {
+  const state = await rideReq("driver", "state", undefined, cookie);
+  const response = await rideReq("driver", "presence", { command: "online", revision: state.data.presence.revision, leaseId: randomUUID() }, cookie);
+  assert.equal(response.status, 200);
+}
 
 before(async () => {
   db = new PGlite();
-  for (const name of ["pilot", "accounts"]) await db.exec(await readFile(new URL(`../server/${name}-schema.sql`, import.meta.url), "utf8"));
+  for (const name of ["pilot", "accounts", "ride-alerts"]) await db.exec(await readFile(new URL(`../server/${name}-schema.sql`, import.meta.url), "utf8"));
 });
 beforeEach(async () => {
   await db.exec("TRUNCATE rivo_driver_reviews, rivo_driver_applications, rivo_member_quotes, rivo_member_rides, rivo_member_sessions, rivo_accounts, rivo_account_limits, rivo_pilot_quotes, rivo_pilot_rides, rivo_pilot_sessions, rivo_pilot_login_attempts CASCADE");
   provider = authFixture();
   const transport = createAuthTransport({ baseUrl: "https://ep-test.neonauth.eu-central-1.aws.neon.tech/rivo_pilot/auth", fetcher: provider.fetcher });
-  auth = createAuthHandler({ query, transport, rateSecret: "local-test-rate-secret-with-at-least-32-characters", reportError: e => { throw e; } });
   accounts = createAccounts({ query, resolveIdentity: createIdentityResolver({ transport }), reviewerEmails: ["reviewer@example.invalid"] });
   const options = { query, resolveRoute: async () => ({ distanceMeters: 5000, durationSeconds: 600, routeSource: "test-fixture" }), reportError: e => { throw e; } };
-  rides = createPilotHandler({ ...options, query: memberQuery(query), resolveParticipant: accounts.participantFor });
+  const rideAlerts = createRideAlerts({ query, publicKey: "test-key", sendPush: async () => {} });
+  auth = createAuthHandler({ query, transport, beforeSignOut: rideAlerts.revoke, rateSecret: "local-test-rate-secret-with-at-least-32-characters", reportError: e => { throw e; } });
+  rides = createPilotHandler({ ...options, query: memberQuery(query), resolveParticipant: accounts.participantFor, rideAlerts });
   legacy = createPilotHandler({ ...options, accessCode: "local-test-invitation", secureCookies: false });
 });
 after(async () => { await db?.close(); });
@@ -138,6 +145,7 @@ test("pending drivers cannot see or accept rides; approval unlocks a complete co
   assert.equal((await accountReq("applications", undefined, driver)).status, 403);
   assert.equal((await review(owner, app, "approved", { documentsChecked: false })).status, 400);
   assert.equal((await review(owner, app)).status, 200);
+  await online(driver);
   assert.equal((await rideReq("driver", "state", undefined, driver)).data.requests[0].id, id);
   for (const command of ["accept", "arrive", "start", "complete"]) assert.equal((await rideReq("driver", "transition", { rideId: id, command }, driver)).status, 200);
   const state = (await rideReq("customer", "state", undefined, customer)).data;
@@ -162,6 +170,7 @@ test("approval revision, self-review, expiry and resubmission cannot bypass the 
 test("revocation blocks new rides atomically but lets the assigned driver finish", async () => {
   const customer = await named("customer@example.invalid"), driver = await named("driver@example.invalid"), owner = await named("reviewer@example.invalid");
   let app = await apply(driver); app = (await review(owner, app)).data.application;
+  await online(driver);
   let id = (await createRide(customer)).data.ride.id;
   await rideReq("driver", "transition", { rideId: id, command: "accept" }, driver);
   assert.equal((await accountReq("apply", application(), driver)).status, 409);
@@ -174,6 +183,7 @@ test("revocation blocks new rides atomically but lets the assigned driver finish
 test("invitation drivers and account requests are isolated in both queue and atomic accept", async () => {
   const customer = await named("customer@example.invalid"), driver = await named("driver@example.invalid"), owner = await named("reviewer@example.invalid");
   const app = await apply(driver); await review(owner, app);
+  await online(driver);
   const old = async role => {
     const r = await request(legacy, "/api/pilot?action=login", { code: "local-test-invitation", role, name: "Стар тест", vehicleModel: "Тестова кола", vehiclePlate: "TEST" });
     return r.headers["set-cookie"].split(";")[0];
@@ -195,4 +205,18 @@ test("an approved driver cannot accept a customer request from the same account"
   const id = (await createRide(driver)).data.ride.id;
   assert.deepEqual((await rideReq("driver", "state", undefined, driver)).data.requests, []);
   assert.equal((await rideReq("driver", "transition", { rideId: id, command: "accept" }, driver)).status, 409);
+});
+
+test("provider sign-out revokes device bindings and work mode before returning success", async () => {
+  const driver = await named("driver@example.invalid"), owner = await named("reviewer@example.invalid");
+  await review(owner, await apply(driver)); await online(driver);
+  const point = Buffer.alloc(65, 1); point[0] = 4;
+  const subscribed = await rideReq("driver", "notification-subscription", { command: "subscribe", subscription: {
+    endpoint: "https://fcm.googleapis.com/fcm/send/synthetic-signout", keys: { p256dh: point.toString("base64url"), auth: Buffer.alloc(16,1).toString("base64url") }
+  } }, driver);
+  assert.equal(subscribed.status, 200);
+  assert.equal((await authReq("sign-out", {}, driver)).status, 200);
+  assert.equal((await query("SELECT count(*)::int AS n FROM rivo_ride_subscriptions", []))[0].n, 0);
+  assert.equal((await query("SELECT online FROM rivo_driver_presence", []))[0].online, false);
+  assert.equal((await rideReq("driver", "state", undefined, driver)).status, 401);
 });

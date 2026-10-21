@@ -15,11 +15,14 @@
     "test:recovery": "node --test tests/active-ride.test.mjs",
     "test:accounts": "node --test tests/accounts.test.mjs",
     "test:pickup": "node --test tests/pickup-location.test.mjs",
-    "db:migrate:accounts": "node --env-file-if-exists=.env.local scripts/migrate-accounts.mjs"
+    "db:migrate:accounts": "node --env-file-if-exists=.env.local scripts/migrate-accounts.mjs",
+    "test:ride-alerts": "node --test tests/ride-alerts.test.mjs",
+    "db:migrate:ride-alerts": "node --env-file-if-exists=.env.local scripts/migrate-ride-alerts.mjs"
   },
   "dependencies": {
     "@neondatabase/auth": "0.7.0-beta",
     "@neondatabase/serverless": "^1.2.0",
+    "@vercel/functions": "3.10.2",
     "lucide-react": "^1.47.0",
     "maplibre-gl": "^6.10.0",
     "react": "^19.1.1",

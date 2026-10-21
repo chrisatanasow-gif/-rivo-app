@@ -10,6 +10,7 @@ import { getRouteGeometry } from "../services/routingService.js";
 import useLiveDriverLocation from "../services/useLiveDriverLocation.js";
 import { isValidLocation, routeKey } from "../../shared/locations.js";
 import { formatMoney } from "../../shared/fare.js";
+import RideAlerts from "../components/RideAlerts.jsx";
 import "./ConnectedCustomerApp.css";
 
 const TERMINAL = ["completed", "cancelled", "expired"];
@@ -86,6 +87,7 @@ export default function ConnectedCustomerApp({ state, busy, error, syncError, on
     onCreate({ pickup: places.pickup, destination: places.destination, passengers, quoteToken: quote.quote.token, idempotencyKey: requestKey.current.id });
   }
   const notices = <>
+    {member && <RideAlerts/>}
     <div className={`pilotSync ${syncError ? "offline" : ""}`} role="status"><span>{syncError || "Свързано · заявките се обновяват"}</span><button aria-label="Обнови заявките" disabled={busy && !syncError} onClick={onRefresh}><RefreshCw size={15}/></button></div>
     {error && <div className="pilotError" role="alert">{error}</div>}
     {storageError && <p className="profileStorageNotice" role="status">Не успяхме да запазим затварянето на курса. След презареждане може да се покаже отново.</p>}

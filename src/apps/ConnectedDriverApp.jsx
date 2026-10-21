@@ -10,6 +10,9 @@ import useLiveDriverLocation from "../services/useLiveDriverLocation.js";
 import { getRouteGeometry } from "../services/routingService.js";
 import { routeKey } from "../../shared/locations.js";
 import { formatMoney } from "../../shared/fare.js";
+import RideAlerts from "../components/RideAlerts.jsx";
+import useDriverAvailability from "../services/useDriverAvailability.js";
+import useRequestSound from "../services/useRequestSound.js";
 import "./ConnectedDriverApp.css";
 
 const TERMINAL = ["completed", "cancelled", "expired"];
@@ -37,14 +40,18 @@ function WaitingTime({ since }) {
 }
 
 export default function ConnectedDriverApp({ state, busy, error, syncError, onRefresh, onTransition, onLogout }) {
-  const [selectedId, setSelectedId] = useState(null);
+  const [selectedId, setSelectedId] = useState(() => new URLSearchParams(location.search).get("ride"));
   const [historyOpen, setHistoryOpen] = useState(false);
   const [confirmation, setConfirmation] = useState(null);
   const [dismissed, setDismissed] = useState(() => { try { return localStorage.getItem("rivoDriverDismissedRideV1"); } catch { return null; } });
   const [storageError, setStorageError] = useState(false);
+  const member = Boolean(state.participant.accountId);
+  const availability = useDriverAvailability({ state, syncError, onRefresh });
+  const requests = member && !availability.online ? [] : state.requests;
+  const sound = useRequestSound(requests, !member || availability.online);
   const latest = state.rides[0];
   const ride = state.activeRide || (latest && TERMINAL.includes(latest.status) && latest.id !== dismissed ? latest : null);
-  const selected = state.requests.find(item => item.id === selectedId);
+  const selected = requests.find(item => item.id === selectedId);
   const displayed = ride || selected;
   const terminal = Boolean(ride && TERMINAL.includes(ride.status));
   const live = useLiveDriverLocation(ride);
@@ -63,6 +70,12 @@ export default function ConnectedDriverApp({ state, busy, error, syncError, onRe
     <div className={`pilotSync ${syncError ? "offline" : ""}`} role="status"><span>{syncError || "Свързано · заявките се обновяват"}</span><button aria-label="Обнови заявките" disabled={busy && !syncError} onClick={onRefresh}><RefreshCw size={15}/></button></div>
     {error && <div className="pilotError" role="alert">{error}</div>}
     {state.participant.accountId && !state.participant.canAccept && <p className="pilotNote" role="status">Новите заявки са заключени до валидно одобрение.</p>}
+    {member && <section className={`memberAvailability ${availability.online ? "online" : ""}`} aria-label="Работен режим">
+      <div><strong>{state.activeRide ? "В курс" : availability.online ? "Онлайн · приемаш заявки" : "Офлайн за нови заявки"}</strong><span>{state.activeRide ? "Можеш да довършиш курса и в офлайн режим за нови заявки." : "Дръж RIVO отворено. Без връзка работният режим изтича до една минута."}</span></div>
+      <button type="button" role="switch" aria-label="Приемай нови заявки" aria-checked={availability.online} disabled={availability.pending || busy || !availability.connected || !state.participant.canAccept} onClick={availability.toggle}>{availability.pending ? "…" : availability.online ? "ОФЛАЙН" : "ОНЛАЙН"}</button>
+      {availability.error && <p role="alert">{availability.error}</p>}
+    </section>}
+    {member && <RideAlerts/>}
     {storageError && <p className="pilotError" role="status">Не успяхме да запазим затварянето на курса. След презареждане може да се покаже отново.</p>}
   </>;
   const note = <p className="driverActionNote">Затворен тест · без плащания</p>;
@@ -107,13 +120,16 @@ export default function ConnectedDriverApp({ state, busy, error, syncError, onRe
     {history.map(item => <Card className="connectedDriverHistory" key={item.id}><b>{STATUS[item.status]}</b><span>{item.pickup.label} → {item.destination.label}</span><strong>{formatMoney(item.priceCents)}</strong><small>№ {item.id.slice(0, 8).toUpperCase()}</small></Card>)}
   </DriverScreen>;
 
-  return <DriverScreen title="RIVO DRIVER" right={<Pill>ТЕСТ</Pill>} className="connectedDriver driverHome" actions={<><Button disabled={busy} onClick={onRefresh}>ОБНОВИ ЗАЯВКИТЕ</Button>{note}</>}>
+  return <DriverScreen title="RIVO DRIVER" right={<Pill live={member && availability.online}>{member ? availability.online ? "ОНЛАЙН" : "ОФЛАЙН" : "ТЕСТ"}</Pill>} className="connectedDriver driverHome" actions={<><Button disabled={busy || (member && (availability.pending || !availability.connected || !state.participant.canAccept))} onClick={member ? availability.toggle : onRefresh}>{member ? availability.pending ? "ЗАПАЗВАНЕ…" : availability.online ? "ИЗЛЕЗ ОФЛАЙН" : "ВКЛЮЧИ СЕ ОНЛАЙН" : "ОБНОВИ ЗАЯВКИТЕ"}</Button>{note}</>}>
     {notices}<div className="driverIntro"><h1>Здравей, {state.participant.name}</h1><p className="muted">Приемай общи заявки от пътниците в теста.</p></div>
     <Card className="connectedDriverVehicle"><CarFront size={28}/><span><b>{state.participant.vehicleModel}</b><small>{state.participant.vehiclePlate}</small></span><button aria-label="Изход" className="iconBtn" disabled={busy} onClick={onLogout}><LogOut size={18}/></button></Card>
     {state.participant.accountId && <a className="driverLiveLink" href="/account">Моят профил</a>}
-    <div className="spaceBetween"><span className="eyebrow">НОВИ ЗАЯВКИ · {state.requests.length}</span><button className="driverHistoryButton" onClick={() => setHistoryOpen(true)}><History size={16}/> История</button></div>
-    {state.requests.length === 0 && <Card className="connectedDriverEmpty"><CarFront size={32}/><h2>Изчакваме пътник</h2><p>Новите заявки ще се появят тук автоматично.</p></Card>}
-    {state.requests.map(item => <button className="card connectedDriverRequest" key={item.id} aria-label={`Прегледай заявката на ${item.customerName}`} disabled={busy} onClick={() => setSelectedId(item.id)}><span><small>{item.customerName}</small><b>{item.pickup.label}</b><small>към {item.destination.label}</small></span><strong>{formatMoney(item.priceCents)}</strong><ChevronRight size={19}/></button>)}
+    <div className="spaceBetween"><span className="eyebrow">НОВИ ЗАЯВКИ · {requests.length}</span><button className="driverHistoryButton" onClick={() => setHistoryOpen(true)}><History size={16}/> История</button></div>
+    <button type="button" className="driverSoundButton" aria-pressed={sound.enabled} onClick={sound.toggle}>{sound.enabled ? "ИЗКЛЮЧИ ЗВУКА" : "ВКЛЮЧИ ЗВУК"}</button>
+    <p className="connectedDriverNote">Звук при нова заявка, докато RIVO е на екрана. При включване ще чуеш пробен сигнал.</p>
+    {sound.error && <p className="pilotError" role="alert">{sound.error}</p>}
+    {requests.length === 0 && <Card className="connectedDriverEmpty"><CarFront size={32}/><h2>{member && !availability.online ? "Включи се, когато си готов" : "Изчакваме пътник"}</h2><p>{member && !availability.online ? "Новите заявки се показват само в онлайн режим." : "Новите заявки ще се появят тук автоматично."}</p></Card>}
+    {requests.map(item => <button className="card connectedDriverRequest" key={item.id} aria-label={`Прегледай заявката на ${item.customerName}`} disabled={busy} onClick={() => setSelectedId(item.id)}><span><small>{item.customerName}</small><b>{item.pickup.label}</b><small>към {item.destination.label}</small></span><strong>{formatMoney(item.priceCents)}</strong><ChevronRight size={19}/></button>)}
     <p className="connectedDriverNote">Приемането се потвърждава от сървъра. Вече приета заявка не може да се вземе от втори шофьор.</p>
     <a className="pilotBack" href="/">Към демо дизайна</a>
   </DriverScreen>;

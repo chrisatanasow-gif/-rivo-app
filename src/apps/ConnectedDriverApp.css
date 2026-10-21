@@ -52,3 +52,13 @@
 .connectedDriver .driverWaitingStatus small{color:var(--muted);font-size:11px;line-height:1.5}
 .connectedDriver .gpsCurrent{color:#a9e5c3}
 .connectedDriver .gpsOld{color:#ffd99e}
+.memberAvailability{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:14px;border:1px solid var(--line);border-radius:18px;background:var(--panel)}
+.memberAvailability>div{flex:1;min-width:135px;display:grid;gap:6px}
+.memberAvailability strong{font-size:14px;line-height:1.4}
+.memberAvailability span{font-size:11px;line-height:1.5;color:var(--muted)}
+.memberAvailability button{min-height:44px;padding:10px 14px;border-radius:12px;background:var(--yellow);color:#050505;font-weight:800;font-size:11px}
+.memberAvailability button:disabled{opacity:.45}
+.memberAvailability.online{border-color:#44765a}
+.memberAvailability.online strong{color:#a9e5c3}
+.memberAvailability p{width:100%;margin:0;color:#ffb5a9;font-size:12px;line-height:1.5}
+.driverSoundButton{min-height:44px;padding:12px;border-radius:12px;border:1px solid var(--line);color:var(--yellow);background:var(--panel);font-size:12px;font-weight:800}

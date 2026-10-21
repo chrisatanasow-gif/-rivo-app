@@ -9,16 +9,19 @@ import { createAuthHandler, createAuthTransport, createIdentityResolver } from "
 import { createAccounts } from "../server/accounts.js";
 import { authFixture } from "../tests/helpers/auth-fixture.mjs";
 import { memberQuery } from "../server/member-query.js";
+import { createRideAlerts } from "../server/ride-alerts.js";
 
 const db = new PGlite();
 await db.exec(await readFile(new URL("../server/pilot-schema.sql", import.meta.url), "utf8"));
 await db.exec(await readFile(new URL("../server/notifications-schema.sql", import.meta.url), "utf8"));
 await db.exec(await readFile(new URL("../server/accounts-schema.sql", import.meta.url), "utf8"));
+await db.exec(await readFile(new URL("../server/ride-alerts-schema.sql", import.meta.url), "utf8"));
 const query = async (statement, parameters) => (await db.query(statement, parameters)).rows;
 const transport = createAuthTransport({ baseUrl: "https://ep-test.neonauth.eu-central-1.aws.neon.tech/rivo_pilot/auth", fetcher: authFixture().fetcher });
-const accounts = createAccounts({ query, resolveIdentity: createIdentityResolver({ transport }), reviewerEmails: ["reviewer@example.invalid"] });
-const auth = createAuthHandler({ query, transport, rateSecret: "local-test-rate-secret-with-at-least-32-characters" });
-const memberRides = createPilotHandler({ query: memberQuery(query), resolveParticipant: accounts.participantFor, resolveRoute: async () => ({ distanceMeters: 1800, durationSeconds: 300, routeSource: "test-fixture" }) });
+const accounts = createAccounts({ query, resolveIdentity: createIdentityResolver({ transport }), reviewerEmails: ["reviewer@example.invalid", "alerts-reviewer@example.invalid"] });
+const rideAlerts = createRideAlerts({ query, publicKey: "B" + "A".repeat(86), sendPush: async () => {} });
+const auth = createAuthHandler({ query, transport, beforeSignOut: rideAlerts.revoke, rateSecret: "local-test-rate-secret-with-at-least-32-characters" });
+const memberRides = createPilotHandler({ query: memberQuery(query), rideAlerts, resolveParticipant: accounts.participantFor, resolveRoute: async () => ({ distanceMeters: 1800, durationSeconds: 300, routeSource: "test-fixture" }) });
 const notifications = createNotificationsHandler({
   query: async (statement, parameters) => (await db.query(statement, parameters)).rows,
   publicKey: "B" + "A".repeat(86), sendPush: async () => {}, production: false,

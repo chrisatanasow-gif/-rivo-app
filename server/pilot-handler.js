@@ -95,7 +95,7 @@ async function readBody(req) {
   return body;
 }
 
-export function createPilotHandler({ query, accessCode, resolveParticipant, secureCookies = true, resolveRoute = getRoadRoute, now, reportError = error => console.error("RIVO pilot API", error.code || error.name) }) {
+export function createPilotHandler({ query, accessCode, resolveParticipant, rideAlerts, secureCookies = true, resolveRoute = getRoadRoute, now, reportError = error => console.error("RIVO pilot API", error.code || error.name) }) {
   const gateHash = hash(accessCode || "");
   const quotes = createFareQuotes({ query, resolveRoute, now });
   const cookie = (token, age = 86400) => `${COOKIE}=${token}; Path=/api/pilot; HttpOnly; SameSite=Strict; Max-Age=${age}${secureCookies ? "; Secure" : ""}`;
@@ -169,6 +169,13 @@ export function createPilotHandler({ query, accessCode, resolveParticipant, secu
       if (action === "session" && req.method === "GET") return send(200, { participant: session ? participant(session) : null, tariff: DEFAULT_TARIFF });
       if (!session) throw new PilotError(401, "Влез отново във вътрешния тест.", "SESSION_REQUIRED");
 
+      if (rideAlerts) {
+        if (action === "presence" && req.method === "POST") return send(200, await rideAlerts.changePresence(session, body));
+        if (action === "notification-config" && req.method === "GET") return send(200, await rideAlerts.config(session, req, new URL(req.url, "http://localhost").searchParams.get("endpoint")));
+        if (action === "notification-subscription" && req.method === "POST") return send(200, await rideAlerts.subscription(session, req, body));
+        if (action === "notification-check" && req.method === "GET") return send(200, await rideAlerts.check(session, req, new URL(req.url, "http://localhost").searchParams));
+      }
+
       if (action === "quote" && req.method === "POST") {
         if (session.role !== "customer") throw new PilotError(403, "Само пътник може да изчисли цена за заявка.");
         const pickup = location(body.pickup, "взимане");
@@ -190,11 +197,12 @@ export function createPilotHandler({ query, accessCode, resolveParticipant, secu
 
       if (!["tracking", "position"].includes(action)) await expireWaiting();
       if (action === "state" && req.method === "GET") {
+        const presence = rideAlerts ? await rideAlerts.presence(session) : null;
         const mine = await query(`${SELECT_RIDES} WHERE r.${session.role === "customer" ? "customer_id" : "driver_id"} = $1 ORDER BY r.created_at DESC LIMIT 10`, [session.id]);
         const active = mine.find(row => ACTIVE.includes(row.status));
-        const available = session.role === "driver" && !active && (!resolveParticipant || session.can_accept)
+        const available = session.role === "driver" && !active && (!resolveParticipant || session.can_accept) && (!rideAlerts || presence?.online)
           ? await query(`${SELECT_RIDES} WHERE r.status = 'waiting' AND r.expires_at > now() AND c.account_id IS ${resolveParticipant ? "NOT " : ""}NULL${resolveParticipant ? " AND c.account_id <> $1" : ""} ORDER BY r.created_at LIMIT 20`, resolveParticipant ? [session.account_id] : []) : [];
-        return send(200, { participant: participant(session), tariff: DEFAULT_TARIFF, activeRide: active ? ride(active) : null, rides: mine.map(ride), requests: available.map(ride) });
+        return send(200, { participant: participant(session), tariff: DEFAULT_TARIFF, activeRide: active ? ride(active) : null, rides: mine.map(ride), requests: available.map(ride), ...(rideAlerts ? { presence, serverTime: new Date().toISOString() } : {}) });
       }
 
       if (action === "create" && req.method === "POST") {
@@ -279,6 +287,7 @@ export function createPilotHandler({ query, accessCode, resolveParticipant, secu
       throw new PilotError(404, "Действието не е намерено.");
     } catch (error) {
       if (error instanceof PilotError || error instanceof QuoteError || error instanceof RouteError || error instanceof AccountError) return send(error.status, { error: error.message, code: error.code });
+      if (error.code === "P0001") return send(409, { error: "За нов курс се включи онлайн с валидно одобрение.", code: "PRESENCE_REQUIRED" });
       if (error.code === "23505") return send(409, { error: "Вече има активна заявка за този участник. Обнови списъка.", code: "RIDE_CONFLICT" });
       if (error.code === "42P01") return send(503, { error: "Вътрешният тест още не е активиран. Свържи се с екипа на RIVO.", code: "SCHEMA_NOT_READY" });
       reportError(error);

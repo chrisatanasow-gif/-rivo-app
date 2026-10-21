@@ -33,11 +33,11 @@ export function createIdentityResolver({ transport }) {
     if (!data?.session || !data.user || data.user.emailVerified !== true || data.user.banned
       || !Number.isFinite(new Date(data.session.expiresAt).getTime()) || new Date(data.session.expiresAt).getTime() <= Date.now()
       || typeof data.user.id !== "string" || !data.user.id || typeof data.user.email !== "string") return null;
-    return { subject: data.user.id, email: data.user.email.toLowerCase(), name: data.user.name };
+    return { subject: data.user.id, email: data.user.email.toLowerCase(), name: data.user.name, expiresAt: data.session.expiresAt };
   };
 }
 
-export function createAuthHandler({ query, transport, rateSecret, reportError = e => console.error("RIVO auth", e.code || e.name) }) {
+export function createAuthHandler({ query, transport, rateSecret, beforeSignOut, reportError = e => console.error("RIVO auth", e.code || e.name) }) {
   return async (req, res) => {
     const send = privateResponse(res);
     try {
@@ -73,6 +73,7 @@ export function createAuthHandler({ query, transport, rateSecret, reportError = 
           }
         } else body = {};
       }
+      if (path === "sign-out" && beforeSignOut) await beforeSignOut(req);
       const response = await transport(path, req, body);
       const cookies = response.headers.getSetCookie().filter(x => x.startsWith(`${COOKIE}=`)).map(x => x.replace(/;\s*Domain=[^;]*/ig, "").replace(/;\s*Path=[^;]*/ig, "").replace(/;\s*(?:SameSite=[^;]*|Partitioned)/ig, "") + "; Path=/; SameSite=Lax");
       if (cookies.length) res.setHeader("Set-Cookie", cookies);

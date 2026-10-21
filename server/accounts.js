@@ -1,6 +1,7 @@
 import { randomUUID, randomBytes } from "node:crypto";
 import { AccountError, field, jsonBody, privateResponse, sameOrigin } from "./account-http.js";
 import { accountDate } from "../shared/account-date.js";
+import { sessionHash } from "./ride-alerts.js";
 
 const ACTIVE = "('waiting', 'accepted', 'arrived', 'in_progress')";
 const driverActive = `EXISTS (SELECT 1 FROM rivo_member_rides r JOIN rivo_member_sessions s ON s.id = r.driver_id WHERE s.account_id = $1 AND r.status IN ${ACTIVE})`;
@@ -18,11 +19,11 @@ export function createAccounts({ query, resolveIdentity, reviewerEmails = [] }) 
     const identity = await resolveIdentity(req);
     if (!identity) return null;
     const [existing] = await query("SELECT * FROM rivo_accounts WHERE auth_subject = $1 AND email = $2", [identity.subject, identity.email]);
-    if (existing) return existing;
+    if (existing) return { ...existing, auth_session_hash: sessionHash(req), auth_expires_at: identity.expiresAt };
     // Identity comes only from the provider's verified session, never request JSON.
     const [row] = await query(`INSERT INTO rivo_accounts (id, auth_subject, email) VALUES ($1, $2, $3)
       ON CONFLICT (auth_subject) DO UPDATE SET email = EXCLUDED.email RETURNING *`, [randomUUID(), identity.subject, identity.email]);
-    return row;
+    return { ...row, auth_session_hash: sessionHash(req), auth_expires_at: identity.expiresAt };
   }
   async function participantFor(req) {
     const account = await accountFor(req);
@@ -39,7 +40,7 @@ export function createAccounts({ query, resolveIdentity, reviewerEmails = [] }) 
       ON CONFLICT (account_id, role) WHERE account_id IS NOT NULL DO UPDATE SET display_name = EXCLUDED.display_name,
       vehicle_model = EXCLUDED.vehicle_model, vehicle_plate = EXCLUDED.vehicle_plate RETURNING *`,
     [randomUUID(), randomBytes(32).toString("hex"), role, account.display_name, role === "driver" ? "city" : null, app?.vehicle_model || null, app?.vehicle_plate || null, account.id]);
-    return { ...row, can_accept: role === "driver" && app.status === "approved" && new Date(app.permit_valid_until).toISOString().slice(0, 10) >= accountDate() };
+    return { ...row, auth_session_hash: account.auth_session_hash, auth_expires_at: account.auth_expires_at, can_accept: role === "driver" && app.status === "approved" && new Date(app.permit_valid_until).toISOString().slice(0, 10) >= accountDate() };
   }
   return { accountFor, participantFor, isReviewer, async handle(req, res) {
     const send = privateResponse(res);

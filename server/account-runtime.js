@@ -3,6 +3,8 @@ import { createAuthHandler, createAuthTransport, createIdentityResolver } from "
 import { createAccounts } from "./accounts.js";
 import { createPilotHandler } from "./pilot-handler.js";
 import { memberQuery } from "./member-query.js";
+import { createRideAlerts } from "./ride-alerts.js";
+import { ridePushSender } from "./ride-push.js";
 
 let runtime;
 export function accountRuntime() {
@@ -11,7 +13,8 @@ export function accountRuntime() {
   const query = sql ? (statement, parameters) => sql.query(statement, parameters) : null;
   const transport = createAuthTransport({ baseUrl: process.env.NEON_AUTH_BASE_URL });
   const accounts = createAccounts({ query, resolveIdentity: createIdentityResolver({ transport }), reviewerEmails: (process.env.RIVO_REVIEWER_EMAILS || "").split(",") });
-  runtime = { accounts: accounts.handle, auth: createAuthHandler({ query, transport, rateSecret: process.env.RIVO_AUTH_RATE_SECRET }),
-    rides: createPilotHandler({ query: query ? memberQuery(query) : null, resolveParticipant: accounts.participantFor }) };
+  const alerts = createRideAlerts({ query, publicKey: process.env.RIVO_VAPID_PUBLIC_KEY, sendPush: ridePushSender() });
+  runtime = { accounts: accounts.handle, auth: createAuthHandler({ query, transport, beforeSignOut: query ? alerts.revoke : undefined, rateSecret: process.env.RIVO_AUTH_RATE_SECRET }),
+    alerts, rides: createPilotHandler({ query: query ? memberQuery(query) : null, resolveParticipant: accounts.participantFor, rideAlerts: alerts }) };
   return runtime;
 }

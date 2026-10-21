@@ -27,6 +27,7 @@ export async function verifyCode(email, otp) {
 }
 export async function signOut() {
   await authCall(auth => auth.signOut());
+  navigator.serviceWorker?.controller?.postMessage({ type: "clear-ride-notifications" });
 }
 export async function accountRequest(action = "profile", body, { signal } = {}) {
   const controller = new AbortController();
