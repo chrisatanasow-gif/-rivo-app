@@ -56,6 +56,7 @@ test("a slow map never blocks pricing and cannot create a map after its screen i
     await page.getByRole("button", { name: "Назад", exact: true }).click();
     await expect(page.locator(".maplibregl-canvas")).toBeVisible();
     await expect(page.locator(".mapLoadingState")).toHaveCount(0);
+    await expect(page.locator(".maplibregl-ctrl-attrib")).toHaveCSS("background-color", "rgba(7, 7, 8, 0.7)");
     expect(errors).toEqual([]);
   } finally { release(); }
 });
