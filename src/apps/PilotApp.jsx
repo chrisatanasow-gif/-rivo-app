@@ -162,7 +162,7 @@ function DriverPilot({ state, busy, onTransition }) {
   </>;
 }
 
-export default function PilotApp({ customerUi, driverUi }) {
+export default function PilotApp({ customerUi, driverUi, member = false }) {
   const [participant, setParticipant] = useState(null);
   const [state, setState] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -240,6 +240,7 @@ export default function PilotApp({ customerUi, driverUi }) {
       onRefresh={() => refresh()} onCreate={body => run("create", body)} onTransition={(rideId, command) => run("transition", { rideId, command })} onLogout={() => run("logout", {})}/>
   </div></div>;
   if (driverUi === "rivo" && participant?.role === "driver" && state) return <div className="shell"><div className="app">
+    {member && !state.participant.canAccept && <p className="pilotNote" role="status">Новите заявки са заключени до валидно одобрение.</p>}
     <ConnectedDriverApp state={state} busy={busy || Boolean(syncError)} error={error} syncError={syncError}
       onRefresh={() => refresh()} onTransition={(rideId, command) => run("transition", { rideId, command })} onLogout={() => run("logout", {})}/>
   </div></div>;
@@ -256,7 +257,7 @@ export default function PilotApp({ customerUi, driverUi }) {
         {participant && <div className="pilotSession"><span><b>{participant.name}</b><small>{participant.role === "driver" ? "Шофьор" : "Пътник"}</small></span><button className="iconBtn" aria-label="Изход" disabled={busy || Boolean(state?.activeRide)} onClick={() => run("logout", {})}><LogOut size={18}/></button></div>}
         {error && <div className="pilotError" role="alert">{error}{!participant && <button type="button" onClick={() => window.location.reload()}>Опитай отново</button>}</div>}
         {participant && <div className={`pilotSync ${syncError ? "offline" : ""}`} role="status"><span>{syncError || (state ? "Свързано · заявките се обновяват" : "Зареждаме заявките…")}</span><button type="button" aria-label="Обнови заявките" disabled={busy} onClick={() => refresh()}><RefreshCw size={15}/></button></div>}
-        {!participant && <PilotLogin onLogin={data => run("login", data)} busy={busy} connected={customerUi === "rivo" || driverUi === "rivo"} defaultRole={driverUi === "rivo" ? "driver" : "customer"}/>}
+        {!participant && (member ? <><h1>Влез в профила си</h1><a className="driverLiveLink" href="/account">ВХОД С ИМЕЙЛ</a></> : <><a className="driverLiveLink" href={driverUi === "rivo" ? "/account/drive" : "/account/ride"}>ВХОД С ИМЕЙЛ · ПОСТОЯНЕН ПРОФИЛ</a><PilotLogin onLogin={data => run("login", data)} busy={busy} connected={customerUi === "rivo" || driverUi === "rivo"} defaultRole={driverUi === "rivo" ? "driver" : "customer"}/></>)}
         {participant && state && (participant.role === "customer" ? <CustomerPilot state={state} busy={busy || Boolean(syncError)} onCreate={body => run("create", body)} onTransition={(rideId, command) => run("transition", { rideId, command })}/> : <DriverPilot state={state} busy={busy || Boolean(syncError)} onTransition={(rideId, command) => run("transition", { rideId, command })}/>)}
       </>}
       <a className="pilotBack" href="/">Към дизайна на RIVO</a>

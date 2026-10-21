@@ -13,6 +13,10 @@ See [customer flow](docs/connected-customer.md), [driver flow](docs/connected-dr
 and [test setup](docs/two-phone-pilot.md). The test requires a dedicated preview
 database and a server-only invitation code.
 
+Permanent verified-email profiles are available at `/account`, with account-linked
+rides and manual driver approval. See [email accounts](docs/email-accounts.md) for
+setup, permissions, verification and the boundary with invitation testing.
+
 Screens and the map engine load on demand. See [mobile loading](docs/mobile-loading.md)
 for measurements, failure recovery and the scope of the performance checks.
 

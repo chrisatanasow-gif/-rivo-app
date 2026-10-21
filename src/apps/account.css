@@ -1,0 +1,26 @@
+.accountApp h1 { white-space: pre-line; font-size: clamp(30px, 8vw, 40px); overflow-wrap: anywhere; }
+.accountApp h2 { font-size: 23px; margin: 0; }
+.accountSymbol { display: inline-flex; align-items: center; justify-content: center; width: 62px; height: 62px; border-radius: 22px; background: #ffdb16; color: #090a0b; flex-shrink: 0; }
+.accountLogin strong, .accountIdentity p { overflow-wrap: anywhere; }
+.accountOtp { font-size: 30px !important; text-align: center; letter-spacing: .35em; font-variant-numeric: tabular-nums; }
+.accountTextButton { display: inline-flex; gap: 8px; align-items: center; justify-content: center; border: 0; background: transparent; color: #d5d5d9; padding: 12px 5px; min-height: 44px; cursor: pointer; font: inherit; font-size: 15px; }
+.accountTextButton:disabled { opacity: .5; cursor: default; }
+.accountIdentity { display: flex; gap: 15px; align-items: center; }
+.accountIdentity p { margin: 6px 0; font-size: 16px; }
+.accountLink { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px; min-height: 64px; margin-top: 16px; border-radius: 20px; background: #ffdb16; color: #0b0b0b; text-decoration: none; font-size: 16px; font-weight: 900; }
+.accountSection { margin: 35px 0; border-top: 1px solid #27282d; padding-top: 28px; }
+.accountHeading { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; }
+.accountHeading > svg { color: #ffdb16; flex-shrink: 0; }
+.accountStatus, .accountReview { display: flex; flex-direction: column; gap: 8px; padding: 22px; margin-bottom: 18px; }
+.accountStatus > b { font-size: 22px; color: #ffdb16; }
+.accountStatus p, .accountReview p { line-height: 1.5; margin: 8px 0; color: #a9abb3; overflow-wrap: anywhere; }
+.accountCheck { display: flex; align-items: flex-start; gap: 12px; font-size: 14px; line-height: 1.5; color: #c3c4cc; }
+.accountCheck input { width: 22px; height: 22px; flex-shrink: 0; accent-color: #ffdb16; }
+.accountApp textarea { min-height: 100px; font: inherit; color: #fff; background: #101115; border: 1px solid #303138; border-radius: 16px; padding: 14px; resize: vertical; width: 100%; }
+.accountReview dl { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 14px; }
+.accountReview dt { color: #9c9da7; }
+.accountReview dd { margin: 0; overflow-wrap: anywhere; }
+.accountSaved { color: #b5e6c4; }
+.accountNav { max-width: 440px; margin: 0 auto; padding: 10px 20px; font-size: 13px; display: flex; gap: 12px; flex-wrap: wrap; background: #111216; }
+.accountNav a { display: inline-flex; gap: 7px; align-items: center; color: #ffdb16; text-decoration: none; min-height: 36px; }
+.accountNav span { color: #bcbcc5; }

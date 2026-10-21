@@ -8,6 +8,7 @@ const CustomerApp = lazy(() => import("./apps/CustomerApp.jsx"));
 const DriverApp = lazy(() => import("./apps/DriverApp.jsx"));
 const AdminApp = lazy(() => import("./apps/AdminApp.jsx"));
 const PilotApp = lazy(() => import("./apps/PilotApp.jsx"));
+const AccountApp = lazy(() => import("./apps/AccountApp.jsx"));
 
 function loadTariff() {
   const stored = load("rivoTariffV2", null) || load("rivoTariffsV1", null)?.city || DEFAULT_TARIFF;
@@ -18,7 +19,7 @@ function loadTariff() {
 export default function App() {
   const path = window.location.pathname.replace(/\/$/, "");
   return <AppLoadBoundary>
-    {path === "/ride" ? <PilotApp customerUi="rivo"/> : path === "/drive" ? <PilotApp driverUi="rivo"/> : path === "/pilot" ? <PilotApp/> : <PrototypeApp/>}
+    {path === "/account" || path.startsWith("/account/") ? <AccountApp/> : path === "/ride" ? <PilotApp customerUi="rivo"/> : path === "/drive" ? <PilotApp driverUi="rivo"/> : path === "/pilot" ? <PilotApp/> : <PrototypeApp/>}
   </AppLoadBoundary>;
 }
 

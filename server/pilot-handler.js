@@ -3,6 +3,7 @@ import { DEFAULT_TARIFF } from "../shared/fare.js";
 import { getRoadRoute, RouteError } from "./road-route.js";
 import { createFareQuotes, QuoteError } from "./fare-quote.js";
 import { GPS_VISIBLE_MS, GPS_SAMPLE_MAX_AGE_MS, validDriverPosition } from "../shared/driver-location.js";
+import { AccountError, sameOrigin } from "./account-http.js";
 const COOKIE = "rivo_pilot_session";
 const ACTIVE = ["waiting", "accepted", "arrived", "in_progress"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -41,7 +42,8 @@ function vehicleType(value) {
 function participant(row) {
   return {
     id: row.id, role: row.role, name: row.display_name, service: "rivo",
-    vehicleType: row.vehicle_type, vehicleModel: row.vehicle_model, vehiclePlate: row.vehicle_plate
+    vehicleType: row.vehicle_type, vehicleModel: row.vehicle_model, vehiclePlate: row.vehicle_plate,
+    ...(row.account_id ? { accountId: row.account_id, canAccept: Boolean(row.can_accept) } : {})
   };
 }
 
@@ -93,12 +95,13 @@ async function readBody(req) {
   return body;
 }
 
-export function createPilotHandler({ query, accessCode, secureCookies = true, resolveRoute = getRoadRoute, now, reportError = error => console.error("RIVO pilot API", error.code || error.name) }) {
+export function createPilotHandler({ query, accessCode, resolveParticipant, secureCookies = true, resolveRoute = getRoadRoute, now, reportError = error => console.error("RIVO pilot API", error.code || error.name) }) {
   const gateHash = hash(accessCode || "");
   const quotes = createFareQuotes({ query, resolveRoute, now });
   const cookie = (token, age = 86400) => `${COOKIE}=${token}; Path=/api/pilot; HttpOnly; SameSite=Strict; Max-Age=${age}${secureCookies ? "; Secure" : ""}`;
 
   async function sessionFor(req) {
+    if (resolveParticipant) return resolveParticipant(req);
     const token = (req.headers.cookie || "").split(";").map(part => part.trim()).find(part => part.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1);
     if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
     const rows = await query("SELECT * FROM rivo_pilot_sessions WHERE token_hash = $1 AND gate_hash = $2 AND expires_at > now()", [hash(token), gateHash]);
@@ -116,7 +119,7 @@ export function createPilotHandler({ query, accessCode, secureCookies = true, re
     const send = (status, data) => { res.statusCode = status; res.end(JSON.stringify(data)); };
 
     try {
-      if (!query || !accessCode || accessCode.length < 16) throw new PilotError(503, "Вътрешният тест още не е активиран. Свържи се с екипа на RIVO.", "NOT_CONFIGURED");
+      if (!query || !resolveParticipant && (!accessCode || accessCode.length < 16)) throw new PilotError(503, "Вътрешният тест още не е активиран. Свържи се с екипа на RIVO.", "NOT_CONFIGURED");
       if (!["GET", "POST"].includes(req.method)) {
         res.setHeader("Allow", "GET, POST");
         throw new PilotError(405, "Неподдържано действие.");
@@ -124,6 +127,7 @@ export function createPilotHandler({ query, accessCode, secureCookies = true, re
       const action = new URL(req.url, "http://localhost").searchParams.get("action") || "state";
       let body;
       if (req.method === "POST") {
+        if (resolveParticipant) sameOrigin(req);
         if (req.headers.origin) {
           let origin;
           try { origin = new URL(req.headers.origin); } catch { throw new PilotError(403, "Неразрешен източник."); }
@@ -133,6 +137,7 @@ export function createPilotHandler({ query, accessCode, secureCookies = true, re
       }
 
       if (action === "login" && req.method === "POST") {
+        if (resolveParticipant) throw new PilotError(403, "Влез с имейл от профила.");
         const address = req.headers["x-vercel-forwarded-for"] || req.socket?.remoteAddress || "unknown";
         const addressHash = createHmac("sha256", accessCode).update(String(address)).digest("hex");
         const limits = await query(`INSERT INTO rivo_pilot_login_attempts (address_hash, attempts, reset_at)
@@ -176,8 +181,10 @@ export function createPilotHandler({ query, accessCode, secureCookies = true, re
       if (action === "logout" && req.method === "POST") {
         const active = await query(`SELECT id FROM rivo_pilot_rides WHERE ${session.role === "customer" ? "customer_id" : "driver_id"} = $1 AND status = ANY($2::text[]) LIMIT 1`, [session.id, ACTIVE]);
         if (active[0]) throw new PilotError(409, "Приключи или откажи активния курс преди изход.", "ACTIVE_RIDE");
-        await query("UPDATE rivo_pilot_sessions SET expires_at = now() WHERE id = $1", [session.id]);
-        res.setHeader("Set-Cookie", cookie("", 0));
+        if (!resolveParticipant) {
+          await query("UPDATE rivo_pilot_sessions SET expires_at = now() WHERE id = $1", [session.id]);
+          res.setHeader("Set-Cookie", cookie("", 0));
+        }
         return send(200, { ok: true });
       }
 
@@ -185,8 +192,8 @@ export function createPilotHandler({ query, accessCode, secureCookies = true, re
       if (action === "state" && req.method === "GET") {
         const mine = await query(`${SELECT_RIDES} WHERE r.${session.role === "customer" ? "customer_id" : "driver_id"} = $1 ORDER BY r.created_at DESC LIMIT 10`, [session.id]);
         const active = mine.find(row => ACTIVE.includes(row.status));
-        const available = session.role === "driver" && !active
-          ? await query(`${SELECT_RIDES} WHERE r.status = 'waiting' AND r.expires_at > now() ORDER BY r.created_at LIMIT 20`, []) : [];
+        const available = session.role === "driver" && !active && (!resolveParticipant || session.can_accept)
+          ? await query(`${SELECT_RIDES} WHERE r.status = 'waiting' AND r.expires_at > now() AND c.account_id IS ${resolveParticipant ? "NOT " : ""}NULL${resolveParticipant ? " AND c.account_id <> $1" : ""} ORDER BY r.created_at LIMIT 20`, resolveParticipant ? [session.account_id] : []) : [];
         return send(200, { participant: participant(session), tariff: DEFAULT_TARIFF, activeRide: active ? ride(active) : null, rides: mine.map(ride), requests: available.map(ride) });
       }
 
@@ -259,7 +266,8 @@ export function createPilotHandler({ query, accessCode, secureCookies = true, re
         const change = transitions[body.command];
         if (!change || change.role !== session.role) throw new PilotError(403, "Това действие не е разрешено.");
         const accepting = body.command === "accept";
-        const ownership = accepting ? "expires_at > now()" : `${session.role === "customer" ? "customer_id" : "driver_id"} = $4`;
+        const ownership = accepting ? `expires_at > now() AND EXISTS (SELECT 1 FROM rivo_pilot_sessions c WHERE c.id = customer_id AND c.account_id IS ${resolveParticipant ? "NOT " : ""}NULL${resolveParticipant ? " AND c.account_id <> (SELECT account_id FROM rivo_pilot_sessions WHERE id = $4)" : ""})${resolveParticipant
+          ? " AND EXISTS (SELECT 1 FROM rivo_driver_applications a JOIN rivo_pilot_sessions d ON d.account_id = a.account_id WHERE d.id = $4 AND a.status = 'approved' AND a.permit_valid_until >= (now() AT TIME ZONE 'Europe/Sofia')::date)" : ""}` : `${session.role === "customer" ? "customer_id" : "driver_id"} = $4`;
         const clearTracking = ["completed", "cancelled"].includes(change.to) ? ", driver_tracking_id = NULL, driver_location = NULL, driver_location_updated_at = NULL" : "";
         const rows = await query(`UPDATE rivo_pilot_rides SET status = $2, updated_at = now(), revision = revision + 1${accepting ? ", driver_id = $4" : ""}${clearTracking}
           WHERE id = $1 AND status = ANY($3::text[]) AND ${ownership} RETURNING id`,
@@ -270,7 +278,7 @@ export function createPilotHandler({ query, accessCode, secureCookies = true, re
 
       throw new PilotError(404, "Действието не е намерено.");
     } catch (error) {
-      if (error instanceof PilotError || error instanceof QuoteError || error instanceof RouteError) return send(error.status, { error: error.message, code: error.code });
+      if (error instanceof PilotError || error instanceof QuoteError || error instanceof RouteError || error instanceof AccountError) return send(error.status, { error: error.message, code: error.code });
       if (error.code === "23505") return send(409, { error: "Вече има активна заявка за този участник. Обнови списъка.", code: "RIDE_CONFLICT" });
       if (error.code === "42P01") return send(503, { error: "Вътрешният тест още не е активиран. Свържи се с екипа на RIVO.", code: "SCHEMA_NOT_READY" });
       reportError(error);

@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS rivo_pilot_sessions (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Permanent account participants are separate from invitation-only sessions.
+ALTER TABLE rivo_pilot_sessions ADD COLUMN IF NOT EXISTS account_id uuid;
+
 CREATE TABLE IF NOT EXISTS rivo_pilot_rides (
   id uuid PRIMARY KEY,
   customer_id uuid NOT NULL REFERENCES rivo_pilot_sessions(id),

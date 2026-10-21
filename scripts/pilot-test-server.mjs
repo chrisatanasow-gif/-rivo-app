@@ -5,10 +5,20 @@ import { resolve, extname } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { createPilotHandler } from "../server/pilot-handler.js";
 import { createNotificationsHandler } from "../server/notifications-handler.js";
+import { createAuthHandler, createAuthTransport, createIdentityResolver } from "../server/account-auth.js";
+import { createAccounts } from "../server/accounts.js";
+import { authFixture } from "../tests/helpers/auth-fixture.mjs";
+import { memberQuery } from "../server/member-query.js";
 
 const db = new PGlite();
 await db.exec(await readFile(new URL("../server/pilot-schema.sql", import.meta.url), "utf8"));
 await db.exec(await readFile(new URL("../server/notifications-schema.sql", import.meta.url), "utf8"));
+await db.exec(await readFile(new URL("../server/accounts-schema.sql", import.meta.url), "utf8"));
+const query = async (statement, parameters) => (await db.query(statement, parameters)).rows;
+const transport = createAuthTransport({ baseUrl: "https://ep-test.neonauth.eu-central-1.aws.neon.tech/rivo_pilot/auth", fetcher: authFixture().fetcher });
+const accounts = createAccounts({ query, resolveIdentity: createIdentityResolver({ transport }), reviewerEmails: ["reviewer@example.invalid"] });
+const auth = createAuthHandler({ query, transport, rateSecret: "local-test-rate-secret-with-at-least-32-characters" });
+const memberRides = createPilotHandler({ query: memberQuery(query), resolveParticipant: accounts.participantFor, resolveRoute: async () => ({ distanceMeters: 1800, durationSeconds: 300, routeSource: "test-fixture" }) });
 const notifications = createNotificationsHandler({
   query: async (statement, parameters) => (await db.query(statement, parameters)).rows,
   publicKey: "B" + "A".repeat(86), sendPush: async () => {}, production: false,
@@ -27,6 +37,9 @@ const types = { ".js": "application/javascript", ".css": "text/css", ".html": "t
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
   if (url.pathname === "/api/pilot") return handle(req, res);
+  if (url.pathname === "/api/account") return accounts.handle(req, res);
+  if (url.pathname === "/api/member-rides") return memberRides(req, res);
+  if (url.pathname.startsWith("/api/auth/")) return auth(req, res);
   if (url.pathname === "/api/notifications") return notifications(req, res);
   const path = resolve(root, `.${decodeURIComponent(url.pathname)}`);
   if (path !== root && !path.startsWith(`${root}/`)) { res.writeHead(403); res.end(); return; }

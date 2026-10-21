@@ -5,7 +5,9 @@ export async function pilotRequest(action, body, { signal } = {}) {
   signal?.addEventListener("abort", abort, { once: true });
   const timeout = window.setTimeout(abort, 12000);
   try {
-    const response = await fetch(`/api/pilot?action=${encodeURIComponent(action)}`, {
+    const member = window.location.pathname.startsWith("/account/");
+    const role = window.location.pathname.startsWith("/account/drive") ? "driver" : "customer";
+    const response = await fetch(`${member ? "/api/member-rides" : "/api/pilot"}?action=${encodeURIComponent(action)}${member ? `&role=${role}` : ""}`, {
       method: body === undefined ? "GET" : "POST",
       credentials: "same-origin", cache: "no-store",
       headers: body === undefined ? undefined : { "Content-Type": "application/json" },
@@ -18,6 +20,11 @@ export async function pilotRequest(action, body, { signal } = {}) {
       error.status = response.status;
       error.code = data.code;
       throw error;
+    }
+    if (member && action === "logout") {
+      const { signOut } = await import("./accountService.js");
+      await signOut();
+      window.location.assign("/account");
     }
     return data;
   } finally {

@@ -508,6 +508,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
       <Header logo right={<div className="customerHeaderActions"><button className="iconBtn offerBell" aria-label="Известия и оферти" onClick={openOffers}><Bell size={20} aria-hidden="true"/>{offers.settings.inApp && !offerUsed && offers.settings.readId !== offers.offer.id && <i aria-hidden="true"/>}</button><button className="iconBtn profileBtn" aria-label="Отвори профила" onClick={() => go("profile")}>{avatar}</button></div>} />
         <main className="content customerContent homeContent">
         <div className="homeIntro"><h1>{customer.name ? `Здравей, ${customer.name}` : "Къде ще пътуваме?"}</h1></div>
+        <a className="card switchCard" href="/account"><span className="switchIcon">R</span><span><b>Влез в RIVO с имейл</b><small>Твоят профил и курсове</small></span><ChevronRight className="cardChevron yellow" size={19} strokeWidth={1.8}/></a>
         <a className="card switchCard" href="/ride"><span className="switchIcon">R</span><span><b>Тествай обща заявка</b><small>Свързан клиентски режим · с покана</small></span><ChevronRight className="cardChevron yellow" size={19} strokeWidth={1.8}/></a>
         {storageNotice}
         {recoveryNotice}
