@@ -74,6 +74,17 @@ test("auth rejects cross-origin/missing-origin mutation, unknown routes and inva
   assert.equal((await authReq("sign-in/email-otp", { email: "a@example.invalid", otp: "12345" })).status, 400);
 });
 
+test("Vercel's explicit auth rewrite preserves the OTP/session contract", async () => {
+  const email = "rewrite@example.invalid";
+  const sent = await request(auth, "/api/auth?authPath=email-otp%2Fsend-verification-otp", { email });
+  assert.equal(sent.status, 200);
+  const verified = await request(auth, "/api/auth?authPath=sign-in%2Femail-otp", { email, otp: "123456" });
+  assert.equal(verified.status, 200);
+  const cookie = verified.headers["set-cookie"][0].split(";")[0];
+  assert.equal((await request(auth, "/api/auth?authPath=get-session", undefined, cookie)).data.user.email, email);
+  assert.equal((await request(auth, "/api/auth?authPath=admin%2Flist-users", {}, cookie)).status, 404);
+});
+
 test("OTP sends are atomically cooled down and verification limits persist in SQL", async () => {
   const email = "limit@example.invalid";
   const sent = await Promise.all([authReq("email-otp/send-verification-otp", { email }), authReq("email-otp/send-verification-otp", { email })]);

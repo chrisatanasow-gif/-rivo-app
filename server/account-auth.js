@@ -41,7 +41,8 @@ export function createAuthHandler({ query, transport, rateSecret, reportError = 
   return async (req, res) => {
     const send = privateResponse(res);
     try {
-      const path = new URL(req.url, "http://localhost").pathname.replace(/^\/api\/auth\//, "");
+      const url = new URL(req.url, "http://localhost");
+      const path = url.searchParams.get("authPath") || url.pathname.replace(/^\/api\/auth\//, "");
       const methods = { "get-session": "GET", "email-otp/send-verification-otp": "POST", "sign-in/email-otp": "POST", "sign-out": "POST" };
       if (!Object.hasOwn(methods, path)) throw new AccountError(404, "Неподдържано действие.");
       if (req.method !== methods[path]) throw new AccountError(405, "Неподдържано действие.");

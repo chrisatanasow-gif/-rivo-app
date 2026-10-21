@@ -4,6 +4,7 @@
   "regions": ["fra1"],
   "crons": [{ "path": "/api/notifications?action=dispatch", "schedule": "0 7 * * *" }],
   "routes": [
+    { "src": "/api/auth/(.*)", "dest": "/api/auth?authPath=$1" },
     { "handle": "filesystem" },
     { "src": "/.*", "dest": "/index.html" }
   ]
