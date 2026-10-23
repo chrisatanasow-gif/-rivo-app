@@ -1,3 +1,5 @@
+import { isValidLocation } from "../../shared/locations.js";
+
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org";
 
 export async function searchAddresses(query, nearLocation) {
@@ -15,7 +17,7 @@ export async function searchAddresses(query, nearLocation) {
   });
 
   addLocationBias(params, nearLocation);
-  const response = await fetch(`${NOMINATIM_URL}/search?${params}`);
+  const response = await fetch(`${NOMINATIM_URL}/search?${params}`, { signal: AbortSignal.timeout(8000) });
   if (!response.ok) throw new Error("Nominatim search failed");
 
   const results = await response.json();
@@ -33,14 +35,15 @@ export async function reverseGeocode(location) {
     zoom: "18",
     "accept-language": "bg"
   });
-  const response = await fetch(`${NOMINATIM_URL}/reverse?${params}`);
+  const response = await fetch(`${NOMINATIM_URL}/reverse?${params}`, { signal: AbortSignal.timeout(8000) });
   if (!response.ok) throw new Error("Nominatim reverse geocoding failed");
 
   return normalizeResult(await response.json());
 }
 
 function normalizeResult(result) {
-  if (!result || !Number.isFinite(Number(result.lat)) || !Number.isFinite(Number(result.lon))) {
+  if (!result || result.lat == null || result.lon == null || result.lat === "" || result.lon === ""
+    || !isValidLocation({ lat: Number(result.lat), lng: Number(result.lon) })) {
     return null;
   }
 
@@ -50,10 +53,12 @@ function normalizeResult(result) {
     .join(" ");
   const place = address.city || address.town || address.village || address.municipality || address.county;
   const area = address.suburb || address.neighbourhood || address.quarter;
-  const label = street || result.name || place || result.display_name?.split(",")[0] || "Избрана точка";
+  const placeName = result.category && !["highway", "place", "boundary"].includes(result.category) ? result.name : null;
+  const label = placeName || street || result.name || place || result.display_name?.split(",")[0] || "Избрана точка";
   const detail = [area, place].filter(Boolean).filter((value, index, values) => values.indexOf(value) === index).join(", ") || "България";
 
   return {
+    id: result.osm_id && result.osm_type ? `osm:${result.osm_type[0].toUpperCase()}:${result.osm_id}` : undefined,
     label,
     detail,
     lat: Number(result.lat),
@@ -68,8 +73,4 @@ function addLocationBias(params, location) {
   const longitude = Number(location.lng);
   const delta = 0.45;
   params.set("viewbox", `${longitude - delta},${latitude + delta},${longitude + delta},${latitude - delta}`);
-}
-
-function isValidLocation(location) {
-  return Number.isFinite(Number(location?.lat)) && Number.isFinite(Number(location?.lng));
 }

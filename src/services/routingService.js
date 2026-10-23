@@ -1,3 +1,5 @@
+import { isValidLocation, routeKey } from "../../shared/locations.js";
+
 export async function getRouteGeometry(start, end) {
   if (!isValidLocation(start) || !isValidLocation(end)) return null;
 
@@ -9,14 +11,14 @@ export async function getRouteGeometry(start, end) {
   url.searchParams.set("annotations", "distance,duration");
 
   try {
-    const response = await fetch(url.toString());
+    const response = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) });
     if (!response.ok) {
       throw new Error("OSRM request failed");
     }
 
     const data = await response.json();
     const route = data.routes && data.routes[0];
-    if (!route) {
+    if (data.code !== "Ok" || !Number.isFinite(route?.distance) || !Number.isFinite(route?.duration) || route.distance < 1) {
       throw new Error("No route found");
     }
 
@@ -24,7 +26,7 @@ export async function getRouteGeometry(start, end) {
       distanceKm: route.distance / 1000,
       durationMinutes: Math.max(1, Math.round(route.duration / 60)),
       geometry: route.geometry,
-      isFallback: false
+      isFallback: false, key: routeKey(start, end)
     };
   } catch (error) {
     const distanceKm = haversineDistanceKm(start, end) * 1.25;
@@ -38,13 +40,9 @@ export async function getRouteGeometry(start, end) {
           [end.lng, end.lat]
         ]
       },
-      isFallback: true
+      isFallback: true, key: routeKey(start, end)
     };
   }
-}
-
-function isValidLocation(location) {
-  return Number.isFinite(Number(location?.lat)) && Number.isFinite(Number(location?.lng));
 }
 
 function haversineDistanceKm(start, end) {

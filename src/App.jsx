@@ -1,18 +1,36 @@
-import React, { useState } from "react";
-import CustomerApp from "./apps/CustomerApp";
-import DriverApp from "./apps/DriverApp";
-import AdminApp from "./apps/AdminApp";
+import React, { lazy, useState } from "react";
+import AppLoadBoundary from "./components/AppLoadBoundary.jsx";
 import { Toast } from "./components/UI";
 import { load, save } from "./lib/storage";
+import { DEFAULT_TARIFF, calculateFare } from "../shared/fare.js";
+
+const CustomerApp = lazy(() => import("./apps/CustomerApp.jsx"));
+const DriverApp = lazy(() => import("./apps/DriverApp.jsx"));
+const AdminApp = lazy(() => import("./apps/AdminApp.jsx"));
+const PilotApp = lazy(() => import("./apps/PilotApp.jsx"));
+const AccountApp = lazy(() => import("./apps/AccountApp.jsx"));
+
+function loadTariff() {
+  const stored = load("rivoTariffV2", null) || load("rivoTariffsV1", null)?.city || DEFAULT_TARIFF;
+  try { calculateFare(1000, stored); return stored; }
+  catch { return DEFAULT_TARIFF; }
+}
 
 export default function App() {
+  const path = window.location.pathname.replace(/\/$/, "");
+  return <AppLoadBoundary>
+    {path === "/account" || path.startsWith("/account/") ? <AccountApp/> : path === "/ride" ? <PilotApp customerUi="rivo"/> : path === "/drive" ? <PilotApp driverUi="rivo"/> : path === "/pilot" ? <PilotApp/> : <PrototypeApp/>}
+  </AppLoadBoundary>;
+}
+
+function PrototypeApp() {
   const [mode, setMode] = useState("customer");
-  const [pricing, setPricingState] = useState(() => load("rivoPricing", { city: 26, premium: 34 }));
+  const [tariff, setTariffState] = useState(loadTariff);
   const [message, setMessage] = useState("");
 
-  const setPricing = (next) => {
-    setPricingState(next);
-    save("rivoPricing", next);
+  const setTariff = (next) => {
+    setTariffState(next);
+    save("rivoTariffV2", next);
   };
 
   const toast = (text) => {
@@ -24,9 +42,9 @@ export default function App() {
   return (
     <div className="shell">
       <div className="app">
-        {mode === "customer" && <CustomerApp pricing={pricing} openDriver={() => setMode("driver")} openAdmin={() => setMode("admin")} toast={toast}/>}
-        {mode === "driver" && <DriverApp close={() => setMode("customer")} toast={toast}/>}
-        {mode === "admin" && <AdminApp close={() => setMode("customer")} pricing={pricing} setPricing={setPricing} toast={toast}/>}
+        {mode === "customer" && <CustomerApp tariff={tariff} openDriver={() => setMode("driver")} openAdmin={() => setMode("admin")} toast={toast}/>}
+        {mode === "driver" && <DriverApp close={() => setMode("customer")} tariff={tariff} toast={toast}/>}
+        {mode === "admin" && <AdminApp close={() => setMode("customer")} tariff={tariff} setTariff={setTariff} toast={toast}/>}
         <Toast message={message}/>
       </div>
     </div>

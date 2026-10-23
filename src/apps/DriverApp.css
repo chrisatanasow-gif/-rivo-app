@@ -1,0 +1,248 @@
+.driverScreen {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.driverScreen > .header {
+  flex: none;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+}
+
+.driverScreen .headerCenter {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  letter-spacing: .03em;
+}
+
+.driverScreen .driverContent {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+  gap: 12px;
+  padding: 12px 18px 18px;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.driverContent > * {
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.driverContent h1 {
+  font-size: 27px;
+  line-height: 1.15;
+}
+
+.driverIntro {
+  display: grid;
+  gap: 6px;
+}
+
+.driverIntro p,
+.driverWaitingStatus p {
+  margin: 0;
+}
+
+.driverActions {
+  flex: none;
+  display: grid;
+  gap: 8px;
+  padding: 12px 18px calc(env(safe-area-inset-bottom) + 16px);
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.driverActions .button {
+  min-height: 54px;
+  padding: 12px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.driverActions .button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.driverExit {
+  min-height: 44px;
+  padding: 8px;
+  border-radius: 12px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.driverScreen button:focus-visible {
+  outline: 2px solid var(--yellow);
+  outline-offset: 3px;
+}
+
+.driverContent .vehicleImage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: clamp(132px, 22svh, 190px);
+  padding: 10px;
+  flex: none;
+}
+
+.driverContent .vehicleImage img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+}
+
+.driverContent .vehicleHero,
+.driverContent .request {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.driverContent .onlineRow {
+  gap: 10px;
+  padding: 10px 14px;
+}
+
+.driverAvailability {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  min-height: 44px;
+  flex: none;
+  padding: 0;
+  background: transparent;
+  border-radius: 12px;
+}
+
+.driverAvailability .toggle {
+  display: block;
+}
+
+.driverContent .kpiGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.driverContent .kpi {
+  min-width: 0;
+  padding: 12px;
+}
+
+.driverContent .kpi strong {
+  font-size: clamp(21px, 6vw, 26px);
+}
+
+.driverContent .request h2 {
+  margin: 5px 0 0;
+  font-size: 32px;
+  color: var(--yellow);
+}
+
+.driverContent .addressStep {
+  padding: 10px 0;
+  text-align: left;
+}
+
+.driverContent .addressStep b {
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.driverContent .customerRow {
+  width: 100%;
+  gap: 10px;
+  text-align: left;
+}
+
+.driverContent .customerRow > span {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.driverContent .avatar,
+.driverContent .turn {
+  flex: none;
+}
+
+.driverContent .actions {
+  margin-left: auto;
+}
+
+.driverContent .actions button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+}
+
+.driverContent .navCard {
+  align-items: center;
+  padding: 12px;
+}
+
+.driverContent .map {
+  width: 100%;
+  height: clamp(210px, 39svh, 370px);
+  min-height: 0;
+  border-radius: 24px;
+}
+
+.driverContent .route {
+  width: 100%;
+  text-align: left;
+}
+
+.driverContent .route .price {
+  flex: none;
+}
+
+.driverWaiting .driverContent {
+  gap: 16px;
+  padding-top: 20px;
+}
+
+.driverWaitingStatus {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+
+.driverWaitingStatus .waitTime {
+  font-size: clamp(48px, 8svh, 64px);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.driverWaiting .vehicleImage {
+  height: clamp(160px, 27svh, 240px);
+}
+
+.driverComplete .driverContent {
+  gap: 16px;
+  padding-top: 24px;
+}
+
+.driverComplete .earnCard {
+  padding: 20px 14px;
+}
+
+@media (max-height: 700px) {
+  .driverScreen .driverContent { gap: 10px; padding-top: 8px; padding-bottom: 12px; }
+  .driverContent .vehicleImage { height: 132px; }
+  .driverContent .map { height: clamp(180px, 34svh, 230px); }
+  .driverWaiting .vehicleImage { height: 160px; }
+  .driverWaitingStatus { gap: 6px; }
+  .driverComplete .check { width: 56px; height: 56px; font-size: 30px; }
+  .driverComplete .earnCard { padding: 14px; }
+}

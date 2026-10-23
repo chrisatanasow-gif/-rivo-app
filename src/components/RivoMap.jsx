@@ -1,35 +1,25 @@
 import React, { useEffect, useRef, useState } from "react";
-import * as maplibregl from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
-import { MapMock } from "./UI";
+import { isValidLocation } from "../../shared/locations.js";
+import { createRivoMapStyle } from "./mapStyle.js";
+import "./RivoMap.css";
 
 const DEFAULT_CENTER = { lat: 42.6019, lng: 23.0334 };
-const OSM_RASTER_STYLE = {
-  version: 8,
-  sources: {
-    osm: {
-      type: "raster",
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      maxzoom: 19,
-      attribution: "© OpenStreetMap contributors"
-    }
-  },
-  layers: [{ id: "osm", type: "raster", source: "osm" }]
-};
 
-export default function RivoMap({ pickup, destination, route, driverProgress, frameProgress, onDestinationSelect, onMapReady, recenterSignal, className = "" }) {
+export default function RivoMap({ pickup, destination, route, driverProgress, driverLocation, driverFocusSignal = 0, frameProgress, onDestinationSelect, onMapReady, recenterSignal, className = "" }) {
   const mapRef = useRef(null);
+  const mapEngineRef = useRef(null);
   const mapContainerRef = useRef(null);
   const pickupRef = useRef(null);
   const destinationRef = useRef(null);
   const driverRef = useRef(null);
-  const routeRef = useRef(null);
   const onDestinationSelectRef = useRef(onDestinationSelect);
   const onMapReadyRef = useRef(onMapReady);
   const [mapReady, setMapReady] = useState(false);
   const [mapLoading, setMapLoading] = useState(true);
   const [mapError, setMapError] = useState(false);
+  const [engineError, setEngineError] = useState(false);
+  const [mapAttempt, setMapAttempt] = useState(0);
+  const hasLiveDriver = isValidLocation(driverLocation);
 
   useEffect(() => {
     onDestinationSelectRef.current = onDestinationSelect;
@@ -39,102 +29,109 @@ export default function RivoMap({ pickup, destination, route, driverProgress, fr
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    let loadingTimeout;
-
-    try {
-      const map = new maplibregl.Map({
-        container: mapContainerRef.current,
-        style: OSM_RASTER_STYLE,
-        center: [DEFAULT_CENTER.lng, DEFAULT_CENTER.lat],
-        zoom: 12,
-        attributionControl: false,
-        pitchWithRotate: false,
-        preserveDrawingBuffer: true
-      });
-
-      mapRef.current = map;
-
-      map.addControl(new maplibregl.NavigationControl({ showCompass: false, showZoom: true }), "bottom-right");
-      map.addControl(new maplibregl.AttributionControl({
-        compact: true,
-        customAttribution: "© OpenStreetMap contributors"
-      }), "bottom-left");
-
-      let styleReady = false;
-      const failMap = () => {
-        if (styleReady) return;
-        window.clearTimeout(loadingTimeout);
-        setMapLoading(false);
-        setMapError(true);
-        if (mapRef.current === map) {
-          map.remove();
-          mapRef.current = null;
-        }
-      };
-
-      map.on("load", () => {
-        styleReady = true;
-        window.clearTimeout(loadingTimeout);
-        setMapReady(true);
-        setMapLoading(false);
-        setMapError(false);
-        onMapReadyRef.current?.(map);
-      });
-
-      map.on("click", (event) => {
-        const { lng, lat } = event.lngLat;
-        onDestinationSelectRef.current?.({ lat, lng });
-      });
-
-      map.on("error", failMap);
-      loadingTimeout = window.setTimeout(failMap, 7000);
-    } catch (error) {
+    let cancelled = false;
+    let failed = false;
+    let styleReady = false;
+    let resizeObserver;
+    const failMap = () => {
+      if (cancelled || styleReady) return;
+      failed = true;
       window.clearTimeout(loadingTimeout);
+      resizeObserver?.disconnect();
       setMapLoading(false);
       setMapError(true);
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
+      setMapReady(false);
+      setEngineError(!mapEngineRef.current);
+      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
+    };
+    const loadingTimeout = window.setTimeout(failMap, 12000);
+    async function initialize() {
+      try {
+        const { maplibregl } = await import("./mapEngine.js");
+        if (cancelled || failed || !mapContainerRef.current) return;
+        mapEngineRef.current = maplibregl;
+        const map = new maplibregl.Map({
+          container: mapContainerRef.current,
+          style: createRivoMapStyle(),
+          center: [DEFAULT_CENTER.lng, DEFAULT_CENTER.lat],
+          zoom: 12,
+          attributionControl: false,
+          pitchWithRotate: false,
+          preserveDrawingBuffer: true
+        });
+
+        mapRef.current = map;
+
+        map.addControl(new maplibregl.NavigationControl({ showCompass: false, showZoom: true }), "bottom-right");
+        map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
+        resizeObserver = new ResizeObserver(() => { if (mapRef.current === map) map.resize(); });
+        resizeObserver.observe(mapContainerRef.current);
+
+        map.on("load", () => {
+          if (cancelled || failed) return;
+          styleReady = true;
+          window.clearTimeout(loadingTimeout);
+          setMapReady(true);
+          setMapLoading(false);
+          setMapError(false);
+          onMapReadyRef.current?.(map);
+        });
+
+        map.on("click", (event) => {
+          const { lng, lat } = event.lngLat;
+          onDestinationSelectRef.current?.({ lat, lng });
+        });
+
+        map.on("error", event => {
+          if (!styleReady) console.warn("RIVO map could not load", event.error?.message);
+          if (event.sourceId === "rivo-basemap") failMap();
+        });
+      } catch (error) {
+        if (cancelled || failed) return;
+        console.warn("RIVO map could not start", error.message);
+        failMap();
       }
     }
+    initialize();
 
     return () => {
+      cancelled = true;
       window.clearTimeout(loadingTimeout);
+      resizeObserver?.disconnect();
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
       }
     };
-  }, []);
+  }, [mapAttempt]);
 
   useEffect(() => {
     if (!mapRef.current || !mapReady) return;
 
     const map = mapRef.current;
-    if (recenterSignal && isValidLocation(pickup)) {
+    if ((recenterSignal || !isValidLocation(destination)) && isValidLocation(pickup)) {
       map.flyTo({ center: [pickup.lng, pickup.lat], zoom: 14, speed: 1.4, curve: 1.2 });
+    } else if (!isValidLocation(pickup) && isValidLocation(destination)) {
+      map.flyTo({ center: [destination.lng, destination.lat], zoom: 14, speed: 1.4, curve: 1.2 });
     }
-  }, [pickup, mapReady, recenterSignal]);
+  }, [pickup, destination, mapReady, recenterSignal]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
+    const maplibregl = mapEngineRef.current;
 
     if (pickupRef.current) pickupRef.current.remove();
     if (destinationRef.current) destinationRef.current.remove();
-    if (routeRef.current) {
-      routeRef.current.remove();
-      routeRef.current = null;
-    }
 
     if (isValidLocation(pickup)) {
-      pickupRef.current = new maplibregl.Marker({ color: "#ffd400" })
+      pickupRef.current = new maplibregl.Marker({ element: locationMarker("pickup", "Място за взимане"), anchor: "center" })
         .setLngLat([pickup.lng, pickup.lat])
         .addTo(map);
     }
 
     if (isValidLocation(destination)) {
-      destinationRef.current = new maplibregl.Marker({ color: "#f97316" })
+      destinationRef.current = new maplibregl.Marker({ element: locationMarker("destination", "Дестинация"), anchor: "center" })
         .setLngLat([destination.lng, destination.lat])
         .addTo(map);
     }
@@ -155,12 +152,17 @@ export default function RivoMap({ pickup, destination, route, driverProgress, fr
       if (!map.getSource("rivo-route")) {
         map.addSource("rivo-route", { type: "geojson", data: routeGeometry });
         map.addLayer({
+          id: "rivo-route-halo", type: "line", source: "rivo-route",
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: { "line-color": "#ffd400", "line-width": 12, "line-opacity": .12, "line-blur": 3 }
+        }, "rivo-road-labels");
+        map.addLayer({
           id: "rivo-route-layer",
           type: "line",
           source: "rivo-route",
           layout: { "line-cap": "round", "line-join": "round" },
-          paint: { "line-color": "#ffd400", "line-width": 4, "line-opacity": 0.9 }
-        });
+          paint: { "line-color": "#ffd400", "line-width": 5, "line-opacity": 1 }
+        }, "rivo-road-labels");
       } else {
         map.getSource("rivo-route").setData(routeGeometry);
       }
@@ -173,13 +175,14 @@ export default function RivoMap({ pickup, destination, route, driverProgress, fr
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    updateDriverMarker(map, driverRef, route?.geometry?.coordinates, driverProgress);
-  }, [route, mapReady, driverProgress]);
+    updateDriverMarker(mapEngineRef.current, map, driverRef, route?.geometry?.coordinates, driverProgress, driverLocation);
+  }, [route, mapReady, driverProgress, driverLocation]);
 
   useEffect(() => {
     const map = mapRef.current;
     const coordinates = route?.geometry?.coordinates;
     if (!map || !mapReady || !Array.isArray(coordinates) || coordinates.length < 2) return;
+    const maplibregl = mapEngineRef.current;
 
     const progress = Number.isFinite(driverProgress) ? clamp(driverProgress, 0, 1) : null;
     const progressIndex = progress === null ? 0 : Math.floor(progress * (coordinates.length - 1));
@@ -193,6 +196,7 @@ export default function RivoMap({ pickup, destination, route, driverProgress, fr
     const bounds = new maplibregl.LngLatBounds();
     visibleCoordinates.forEach(coordinate => bounds.extend(coordinate));
     if (progress !== null) bounds.extend(coordinates[Math.round(progress * (coordinates.length - 1))]);
+    if (isValidLocation(driverLocation)) bounds.extend([driverLocation.lng, driverLocation.lat]);
 
     map.fitBounds(bounds, {
       padding: { top: 42, right: 34, bottom: 74, left: 34 },
@@ -202,12 +206,32 @@ export default function RivoMap({ pickup, destination, route, driverProgress, fr
     });
   }, [route, mapReady, frameProgress, driverProgress]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !hasLiveDriver) return;
+    const maplibregl = mapEngineRef.current;
+    if (driverFocusSignal) map.flyTo({ center: [driverLocation.lng, driverLocation.lat], zoom: 14, duration: 650 });
+    else {
+      const bounds = new maplibregl.LngLatBounds();
+      for (const point of [pickup, destination, driverLocation]) if (isValidLocation(point)) bounds.extend([point.lng, point.lat]);
+      for (const point of route?.geometry?.coordinates || []) bounds.extend(point);
+      map.fitBounds(bounds, { padding: { top: 42, right: 34, bottom: 74, left: 34 }, maxZoom: 14, duration: 650 });
+    }
+    // Frame the first received position or an explicit focus action, without
+    // taking control of the map on every GPS sample.
+  }, [mapReady, hasLiveDriver, driverFocusSignal]);
+
   useEffect(() => () => {
     if (driverRef.current) driverRef.current.remove();
   }, []);
 
   if (mapError) {
-    return <MapMock />;
+    return <div className={`map mapUnavailable ${className}`} role="status">
+      <span className="mapUnavailableMark" aria-hidden="true">R</span>
+      <b>Картата временно не е налична</b>
+      <small>Можеш да избереш адрес от търсенето.</small>
+      <button type="button" onClick={() => { if (engineError) { window.location.reload(); return; } setMapError(false); setMapLoading(true); setMapReady(false); setMapAttempt(value => value + 1); }}>ЗАРЕДИ ОТНОВО</button>
+    </div>;
   }
 
   return <div ref={mapContainerRef} className={`map liveMap ${className}`} aria-label="Карта на маршрута">
@@ -215,8 +239,17 @@ export default function RivoMap({ pickup, destination, route, driverProgress, fr
   </div>;
 }
 
-function updateDriverMarker(map, markerRef, coordinates, progress) {
-  if (!Array.isArray(coordinates) || coordinates.length < 2 || !Number.isFinite(progress)) {
+function locationMarker(kind, label) {
+  const element = document.createElement("div");
+  element.className = `rivoLocationMarker rivoLocationMarker--${kind}`;
+  element.setAttribute("role", "img");
+  element.setAttribute("aria-label", label);
+  return element;
+}
+
+function updateDriverMarker(maplibregl, map, markerRef, coordinates, progress, livePosition) {
+  const live = isValidLocation(livePosition);
+  if (!live && (!Array.isArray(coordinates) || coordinates.length < 2 || !Number.isFinite(progress))) {
     if (markerRef.current) {
       markerRef.current.remove();
       markerRef.current = null;
@@ -224,7 +257,7 @@ function updateDriverMarker(map, markerRef, coordinates, progress) {
     return;
   }
 
-  const position = getRoutePosition(coordinates, clamp(progress, 0, 1));
+  const position = live ? [livePosition.lng, livePosition.lat] : getRoutePosition(coordinates, clamp(progress, 0, 1));
   if (!markerRef.current) {
     const element = document.createElement("div");
     element.className = "rivoDriverMarker";
@@ -233,6 +266,14 @@ function updateDriverMarker(map, markerRef, coordinates, progress) {
     markerRef.current = new maplibregl.Marker({ element, anchor: "center" }).setLngLat(position).addTo(map);
   } else {
     markerRef.current.setLngLat(position);
+  }
+  const element = markerRef.current.getElement();
+  element.classList.toggle("isStale", Boolean(livePosition?.stale));
+  if (live) {
+    element.setAttribute("role", "img");
+    element.setAttribute("aria-label", livePosition.stale ? "Последна известна позиция на шофьора" : "GPS позиция на шофьора");
+    element.dataset.latitude = String(livePosition.lat);
+    element.dataset.longitude = String(livePosition.lng);
   }
 }
 
@@ -248,8 +289,4 @@ function getRoutePosition(coordinates, progress) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
-}
-
-function isValidLocation(location) {
-  return Number.isFinite(Number(location?.lat)) && Number.isFinite(Number(location?.lng));
 }

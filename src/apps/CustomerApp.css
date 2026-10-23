@@ -1,0 +1,154 @@
+.homeContent > * { flex-shrink: 0; min-width: 0; }
+.homeIntro h1 { overflow-wrap: anywhere; }
+.homeContent .savedPlaces button > div { flex: 1; min-width: 0; }
+.homeContent .savedPlaces button small { margin-top: 4px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.profileBtn { display: grid; place-items: center; }
+.switchCard[href] { color: #fff; text-decoration: none; }
+.customerProfile .profileHero > div { min-width: 0; }
+.customerProfile .profileHero h2 { overflow-wrap: anywhere; }
+.customerProfile .profileHero .avatar { flex: none; }
+.profileLocalNote { margin: 0; color: #aeb2ba; font-size: 12px; line-height: 1.5; }
+.profileNameForm { display: grid; gap: 10px; padding: 14px; }
+.profileNameForm label { font-size: 13px; font-weight: 800; }
+.profileNameForm input { min-width: 0; width: 100%; min-height: 48px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; color: #fff; background: var(--panel2); font-size: 16px; }
+.profileNameForm .button { min-height: 46px; }
+.profilePlaceRow { display: flex; gap: 8px; align-items: center; border-bottom: 1px solid var(--line); }
+.profilePlaceRow .place { flex: 1; min-width: 0; min-height: 64px; }
+.profilePlaceRow .place > span:nth-child(2) { min-width: 0; overflow-wrap: anywhere; }
+.editPlaceButton { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 12px; background: var(--panel2); color: var(--yellow); }
+.customerHistoryRow { width: 100%; display: flex; gap: 12px; text-align: left; color: #fff; }
+.customerHistoryRow > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.customerHistoryRow > span b { font-size: 14px; line-height: 1.4; }
+.customerHistoryRow strong { font-size: 16px; }
+.emptyCustomerHistory { display: grid; gap: 10px; padding: 18px; text-align: left; }
+.emptyCustomerHistory svg { color: var(--yellow); }
+.emptyCustomerHistory b { font-size: 14px; line-height: 1.5; }
+.customerProfile .switchCard { width: 100%; color: #fff; text-align: left; }
+.profileStorageNotice { display: grid; gap: 8px; padding: 12px; border: 1px solid #775133; border-radius: 14px; background: #241c14; color: #ffdab0; text-align: left; }
+.profileStorageNotice p { margin: 0; font-size: 12px; line-height: 1.5; }
+.profileStorageNotice button { min-height: 44px; padding: 8px; border-radius: 10px; background: var(--panel2); color: #fff; font-size: 12px; }
+
+.arrivalStatus .pill { display: block; max-width: 100px; white-space: normal; text-align: center; line-height: 1.35; }
+
+.customerBooking {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.customerRide .map { width: 100%; height: clamp(220px, 36svh, 340px); min-height: 0; }
+.customerRide .statusHeader > div { min-width: 0; }
+.customerRide h1 { overflow-wrap: anywhere; }
+.customerRide .driverProfile { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 10px; }
+.customerRide .driverProfile .driverAvatar { width: 44px; height: 44px; }
+.customerRide .driverProfile .grow { overflow-wrap: anywhere; }
+.customerRide .driverProfile .actions { display: flex; gap: 6px; margin: 0; }
+.customerRide .actions button { display: grid; place-items: center; width: 44px; height: 44px; }
+.customerRide .pickupSummary > span:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.customerRide .pickupSummary .pill { flex: none; }
+.customerRide .activeTripCard .price { flex: none; font-size: 18px; white-space: nowrap; }
+.customerRide .activeTripCard small { overflow-wrap: anywhere; }
+.customerRide .cancelPanel .muted { margin: 4px 0 0; font-size: 13px; }
+.customerRide .cancelActions button { min-height: 48px; font-size: 12px; }
+.customerMatching .customerContent { align-items: center; padding-top: clamp(24px, 6svh, 52px); }
+.customerComplete .receiptRow > b { flex: 1; min-width: 0; text-align: right; overflow-wrap: anywhere; }
+.customerComplete .receiptTop strong,
+.customerComplete .receiptRow.total strong { white-space: nowrap; }
+.customerComplete .stars { gap: 4px; }
+.customerComplete .stars button { min-width: 44px; min-height: 44px; border-radius: 10px; }
+.customerComplete .tipGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.customerComplete .tipGrid button { min-height: 48px; font-size: 13px; }
+
+.customerBooking > .header { flex: none; }
+
+.customerBooking .customerContent {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+  gap: 14px;
+  padding: 12px 18px 20px;
+}
+
+.customerBooking .customerContent > * { flex-shrink: 0; min-width: 0; }
+.customerBooking h1 { font-size: 28px; line-height: 1.12; margin-top: 5px; }
+.customerBooking .muted { font-size: 13px; margin: 8px 0 0; }
+
+.customerActions {
+  flex: none;
+  display: grid;
+  gap: 6px;
+  padding: 10px 18px calc(env(safe-area-inset-bottom) + 14px);
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.customerActions .button { min-height: 54px; padding: 12px; font-size: 14px; line-height: 1.35; }
+.customerActions .button:disabled { opacity: .45; cursor: not-allowed; }
+.customerActions .quietAction { min-height: 44px; border-radius: 12px; }
+.customerActionHint { margin: 0 0 3px; color: #aeb2ba; font-size: 11px; line-height: 1.4; }
+
+.customerBooking button:focus-visible,
+.customerBooking input:focus-visible { outline: 2px solid var(--yellow); outline-offset: 3px; }
+
+.customerRoute .routeEditor { padding: 5px 12px; }
+.addressField { display: flex; gap: 9px; align-items: center; margin: 0; padding: 10px 0; }
+.addressField + .addressField { border-top: 1px solid var(--line); }
+.addressSuggestions + .addressField { border-top: 1px solid var(--line); }
+.addressField label { display: grid; gap: 5px; }
+.addressField label > span { color: #aeb2ba; font-size: 10px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.addressField.active label > span { color: var(--yellow); }
+.addressField input { display: block; width: 100%; min-height: 28px; padding: 0; border: 0; border-radius: 3px; background: transparent; color: #fff; font-size: 16px; font-weight: 650; }
+.addressField input::placeholder { color: #8f939c; font-weight: 450; }
+.customerRoute .searchButton { width: 44px; height: 44px; }
+.customerRoute .searchButton:disabled { cursor: not-allowed; }
+.customerRoute .searchButton .lucide-loader-circle { animation: matchingSpin 1.4s linear infinite; }
+.customerRoute .addressHint { margin: -5px 2px 0; color: #aeb2ba; font-size: 12px; line-height: 1.5; }
+.addressSearchStatus:empty { display: none; }
+.customerRoute .searchMessage { margin: 0; font-size: 12px; line-height: 1.5; }
+.customerRoute .addressResult b,
+.customerRoute .addressResult small { white-space: normal; overflow-wrap: anywhere; }
+.customerRoute .addressResult b { font-size: 14px; line-height: 1.4; }
+.customerRoute .addressResult small { font-size: 12px; }
+.addressSuggestions:has(.addressSearchStatus:empty):not(:has(.addressResults)) { display: none; }
+.addressSuggestions { padding: 0 0 10px; }
+.addressSuggestions .eyebrow { margin: 4px 0 8px; }
+.addressSuggestions .searchMessage { margin: 0 0 8px; }
+.addressSuggestions .addressResult { border-radius: 12px; padding: 10px 8px; }
+.addressSuggestions .addressResult[aria-selected="true"] { border-color: var(--yellow); background: #252316; }
+.suggestionAttribution { margin-top: 9px; font-size: 10px; }
+.suggestionAttribution a { color: #aeb2ba; }
+.customerRoute .place { min-height: 54px; }
+.customerRoute .place > span:nth-child(2) { min-width: 0; }
+.customerRoute .place b { font-size: 14px; overflow-wrap: anywhere; }
+.customerRoute .place small { font-size: 12px; }
+
+.customerRoute .customerMapWrap,
+.customerRoute .customerMapWrap .map { height: clamp(220px, 31svh, 290px); min-height: 0; }
+.customerRoute .mapRecenter { width: 44px; height: 44px; }
+
+.customerBooking .summaryLine > span:not(.dot) { flex: 1; }
+.customerBooking .summaryLine b { white-space: normal; overflow-wrap: anywhere; font-size: 14px; line-height: 1.45; }
+.customerBooking .summaryMeta { font-size: 11px; }
+.customerBooking .optionRow { min-height: 60px; }
+.customerBooking .bookingOptions { padding: 14px 12px; }
+.customerBooking .segmented button { min-height: 44px; }
+.customerBooking .stepper { gap: 6px; }
+.customerBooking .stepper button { width: 44px; height: 44px; flex: none; }
+.customerBooking .stepper button:disabled { opacity: .3; cursor: not-allowed; }
+.customerBooking .stepper b { min-width: 58px; text-align: center; }
+.customerBooking .priceSummary { flex-wrap: wrap; }
+
+@media (max-width: 360px) {
+  .customerBooking .optionRow:has(.stepper) { flex-wrap: wrap; }
+  .customerBooking .optionRow:has(.stepper) .stepper { margin-left: auto; }
+}
+
+@media (max-height: 650px) {
+  .customerBooking .customerContent { padding-top: 6px; gap: 10px; }
+  .customerActions { padding-top: 8px; padding-bottom: calc(env(safe-area-inset-bottom) + 10px); }
+  .customerActionHint { font-size: 10px; }
+}
+
+.rideRecoveryNotice { margin: 0; padding: 11px 12px; border: 1px solid #3a4835; border-radius: 13px; background: #172016; color: #c5ddbe; font-size: 12px; line-height: 1.5; text-align: left; }

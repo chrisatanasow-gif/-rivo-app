@@ -1,0 +1,5 @@
+.appLoadScreen{height:100%;min-height:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:24px;padding:24px;text-align:center}
+.appLoadScreen>div[role=alert]{display:grid;gap:16px;width:100%;max-width:340px}
+.appLoadScreen h1{font-size:24px;line-height:1.25}
+.appLoadScreen p{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
+.appLoadScreen .button{min-height:48px;width:100%}
