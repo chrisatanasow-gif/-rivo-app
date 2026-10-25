@@ -105,3 +105,18 @@ test("demo driver and control load only when selected and returning keeps the pr
   await page.getByRole("button", { name: "Назад", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Здравей, Крис" })).toBeVisible();
 });
+
+test("driver registration demo stays local and opens the driver demo", async ({ page }) => {
+  await fixtures(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Демо за шофьор", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Карай с RIVO." })).toBeVisible();
+  await page.getByLabel("Име за демото").fill("Мая");
+  await page.getByLabel("Автомобил").fill("Škoda Octavia");
+  await page.getByLabel("Регистрационен номер").fill("PK 1234 AB");
+  await page.getByRole("button", { name: "ИЗПРАТИ ДЕМО КАНДИДАТУРА", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Кандидатурата е готова." })).toBeVisible();
+  await expect(page.getByText("Тук няма истинска регистрация или право за приемане на курсове.")).toBeVisible();
+  await page.getByRole("button", { name: "ОТВОРИ ШОФЬОРСКИЯ DEMO", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Здравей, Мая" })).toBeVisible();
+});

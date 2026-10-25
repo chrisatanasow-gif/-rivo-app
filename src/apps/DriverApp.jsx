@@ -1,17 +1,45 @@
 import React, { useEffect, useState } from "react";
-import { MessageCircle, Phone } from "lucide-react";
+import { CarFront, CheckCircle2, FileCheck2, MessageCircle, Phone } from "lucide-react";
 import { Button, Card, MapMock, Pill, VehicleImage } from "../components/UI";
 import { DEMO_DRIVER_VEHICLE } from "../data/mockData";
 import { calculateFare, formatMoney } from "../../shared/fare.js";
 import DriverScreen from "../components/DriverScreen.jsx";
 
-export default function DriverApp({ close, tariff, toast }) {
-  const [screen, setScreen] = useState("home");
+const DEMO_APPLICATION = { name: "Иван Петров", vehicleModel: "Toyota Corolla", vehiclePlate: "CB 5237 MK" };
+
+function DriverRegistration({ application, onChange, onBack, onSubmit }) {
+  return <DriverScreen title="RIVO DRIVER" onBack={onBack} right={<Pill>ДЕМО</Pill>} className="driverRegistration" actions={<Button type="submit" form="driver-demo-registration">ИЗПРАТИ ДЕМО КАНДИДАТУРА</Button>}>
+    <div className="driverIntro"><span className="eyebrow">ДЕМО РЕГИСТРАЦИЯ</span><h1>Карай с RIVO.</h1><p className="muted">Виж краткия път до шофьорския режим. Данните остават само в това демо.</p></div>
+    <Card className="driverRegistrationInfo"><CarFront size={23}/><span><b>Твоят таксиметров автомобил</b><small>В истинската кандидатура документите се проверяват ръчно.</small></span></Card>
+    <form id="driver-demo-registration" className="driverDemoForm" onSubmit={event => { event.preventDefault(); onSubmit(); }}>
+      <label>Име за демото<input name="name" autoComplete="name" maxLength={80} required value={application.name} onChange={onChange}/></label>
+      <label>Автомобил<input name="vehicleModel" maxLength={80} required value={application.vehicleModel} onChange={onChange}/></label>
+      <label>Регистрационен номер<input name="vehiclePlate" maxLength={20} required value={application.vehiclePlate} onChange={onChange}/></label>
+      <p className="driverDemoNote">Това е локално демо: не изпращаме и не запазваме лични данни.</p>
+    </form>
+  </DriverScreen>;
+}
+
+function DriverRegistrationReview({ application, onBack, onContinue }) {
+  return <DriverScreen title="КАНДИДАТУРА" onBack={onBack} right={<Pill>ДЕМО</Pill>} className="driverRegistration driverRegistrationReview" actions={<Button onClick={onContinue}>ОТВОРИ ШОФЬОРСКИЯ DEMO</Button>}>
+    <div className="driverResultMark" aria-hidden="true"><CheckCircle2 size={30}/></div>
+    <div className="driverIntro"><span className="eyebrow">ДЕМО СТАТУС</span><h1>Кандидатурата е готова.</h1><p className="muted">В реалния RIVO следва проверка на шофьора, автомобила и разрешението.</p></div>
+    <Card className="driverDemoSummary"><FileCheck2 size={22}/><span><small>ШОФЬОР В ДЕМОТО</small><b>{application.name.trim() || "Шофьор"}</b><small>{application.vehicleModel.trim()} · {application.vehiclePlate.trim()}</small></span></Card>
+    <p className="driverDemoNote">Тук няма истинска регистрация или право за приемане на курсове.</p>
+  </DriverScreen>;
+}
+
+export default function DriverApp({ close, initialScreen = "home", tariff, toast }) {
+  const [screen, setScreen] = useState(initialScreen);
+  const [application, setApplication] = useState(DEMO_APPLICATION);
   const [online, setOnline] = useState(true);
   const [wait, setWait] = useState(0);
   const [progress, setProgress] = useState(18);
   const vehicle = DEMO_DRIVER_VEHICLE;
   const demoFare = calculateFare(31_000, tariff);
+  const driverName = application.name.trim() || "Иван";
+  const vehicleLabel = application.vehicleModel.trim() || vehicle.model;
+  const vehiclePlate = application.vehiclePlate.trim() || "CB 5237 MK";
 
   useEffect(() => {
     if (screen !== "waiting") return;
@@ -29,12 +57,15 @@ export default function DriverApp({ close, tariff, toast }) {
 
   const waitLabel = `${String(Math.floor(wait/60)).padStart(2,"0")}:${String(wait%60).padStart(2,"0")}`;
 
+  if (screen === "registration") return <DriverRegistration application={application} onChange={event => setApplication(value => ({ ...value, [event.target.name]: event.target.value }))} onBack={close} onSubmit={() => setScreen("review")}/>;
+  if (screen === "review") return <DriverRegistrationReview application={application} onBack={() => setScreen("registration")} onContinue={() => setScreen("home")}/>;
+
   if (screen === "home") return (
     <DriverScreen title="RIVO DRIVER" onBack={close} right={<Pill>ДЕМО</Pill>} className="driverHome" actions={<>
       <Button disabled={!online} onClick={() => setScreen("request")}>ДЕМО: НОВА ЗАЯВКА</Button>
       <button className="driverExit" onClick={close}>КЪМ КЛИЕНТСКОТО ПРИЛОЖЕНИЕ</button>
     </>}>
-        <div className="driverIntro"><h1>Здравей, Иван</h1><p className="muted">{vehicle.model} · CB 5237 MK</p></div>
+        <div className="driverIntro"><h1>Здравей, {driverName}</h1><p className="muted">{vehicleLabel} · {vehiclePlate}</p></div>
         <a className="driverLiveLink" href="/drive">Отвори общите тестови заявки</a>
         <Card className="onlineRow">
           <span><b>Статус</b><small>{online ? "Онлайн · приемаш заявки" : "Офлайн · не приемаш заявки"}</small></span>

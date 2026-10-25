@@ -62,7 +62,7 @@ function BookingDetails({ timing, setTiming, passengers, setPassengers, luggage,
   return <section className="bookingOptions"><div className="eyebrow">ДЕТАЙЛИ ЗА КУРСА</div><div className="segmented"><button className={timing === "now" ? "active" : ""} onClick={() => setTiming("now")}>Сега</button><button className={timing === "later" ? "active" : ""} onClick={() => setTiming("later")}>Насрочи</button></div>{timing === "later" && <button className="optionRow" onClick={() => toast("Избери час за курса")}><span><small>ЧАС НА ВЗИМАНЕ</small><b>Днес · 18:30</b></span><ChevronRight size={19} strokeWidth={1.8}/></button>}<div className="optionRow"><span><small>ПЪТНИЦИ</small><b>Кой ще пътува?</b></span><Stepper value={passengers} onChange={setPassengers}/></div><button className="optionRow" onClick={() => setLuggage(value => !value)}><span><small>БАГАЖ</small><b>{luggage ? "1 голям багаж" : "Без багаж"}</b></span><span className={`toggle ${luggage ? "on" : ""}`}><i/></span></button><button className="optionRow" onClick={() => setPayment(value => value === "cash" ? "card" : "cash")}><span><small>ПЛАЩАНЕ</small><b>{payment === "cash" ? "Кеш" : "Visa •••• 4242"}</b></span><ChevronRight size={19} strokeWidth={1.8}/></button></section>;
 }
 
-export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
+export default function CustomerApp({ tariff, openDriver, openDriverRegistration, openAdmin, toast }) {
   const { profile: customer, updateProfile, storageError, retrySave } = useCustomerProfile();
   const offers = useDailyOffers();
   const activeSession = useActiveRide(customer.rides);
@@ -514,7 +514,7 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
           <span className="destinationIcon"><Navigation2 size={18} strokeWidth={1.8} aria-hidden="true"/></span><span><small>Къде отиваш?</small><b>{locationLabel(destination)}</b><small>Натисни, за да избереш маршрут</small></span><ChevronRight className="cardChevron" size={20} strokeWidth={1.8}/>
         </button>
         <div className="homeSaved"><span className="eyebrow">БЪРЗ ИЗБОР</span><div className="savedPlaces">{savedPlaces.map(({ id, name, location, icon }) => <button key={id} aria-label={name} onClick={() => location ? choosePlace(location) : editSavedPlace(id)}><span><PlaceIcon icon={icon}/></span><div><b>{name}</b><small>{location?.label || "Добави адрес"}</small></div></button>)}</div></div>
-        <nav className="homeQuietLinks" aria-label="Допълнителни RIVO опции"><a href="/account">Влез в RIVO с имейл</a><span aria-hidden="true">·</span><a href="/ride">Тествай обща заявка</a></nav>
+        <nav className="homeQuietLinks" aria-label="Допълнителни RIVO опции"><a href="/account">Влез в RIVO с имейл</a><span aria-hidden="true">·</span><a href="/ride">Тествай обща заявка</a><span aria-hidden="true">·</span><button type="button" onClick={openDriverRegistration}>Демо за шофьор</button></nav>
       </main>
     </>
   );

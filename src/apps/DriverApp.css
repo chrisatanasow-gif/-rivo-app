@@ -239,6 +239,22 @@
   padding: 20px 14px;
 }
 
+.driverRegistration .driverContent { gap: 16px; padding-top: 20px; }
+.driverRegistrationInfo,
+.driverDemoSummary { display: flex; align-items: flex-start; gap: 12px; padding: 15px; }
+.driverRegistrationInfo > svg,
+.driverDemoSummary > svg { color: var(--yellow); flex: none; }
+.driverRegistrationInfo > span,
+.driverDemoSummary > span { display: grid; gap: 4px; min-width: 0; }
+.driverRegistrationInfo b,
+.driverDemoSummary b { font-size: 15px; overflow-wrap: anywhere; }
+.driverDemoForm { display: grid; gap: 13px; }
+.driverDemoForm label { display: grid; gap: 7px; color: #d2d8e2; font-size: 12px; font-weight: 750; }
+.driverDemoForm input { width: 100%; min-height: 50px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; outline: 0; background: rgba(17,21,29,.9); color: #fff; font: inherit; font-size: 16px; transition: border-color .18s ease, box-shadow .18s ease; }
+.driverDemoForm input:focus { border-color: rgba(255,220,46,.76); box-shadow: 0 0 0 4px rgba(255,220,46,.10); }
+.driverDemoNote { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.driverRegistrationReview .driverResultMark { flex: none; }
+
 @media (max-height: 700px) {
   .driverScreen .driverContent { gap: 10px; padding-top: 8px; padding-bottom: 12px; }
   .driverContent .vehicleImage { height: 132px; }

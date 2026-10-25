@@ -25,6 +25,7 @@ export default function App() {
 
 function PrototypeApp() {
   const [mode, setMode] = useState("customer");
+  const [driverStart, setDriverStart] = useState("home");
   const [tariff, setTariffState] = useState(loadTariff);
   const [message, setMessage] = useState("");
 
@@ -39,11 +40,16 @@ function PrototypeApp() {
     window.__rivoToast = window.setTimeout(() => setMessage(""), 1700);
   };
 
+  const openDriver = (start = "home") => {
+    setDriverStart(start);
+    setMode("driver");
+  };
+
   return (
     <div className="shell">
       <div className="app">
-        {mode === "customer" && <CustomerApp tariff={tariff} openDriver={() => setMode("driver")} openAdmin={() => setMode("admin")} toast={toast}/>}
-        {mode === "driver" && <DriverApp close={() => setMode("customer")} tariff={tariff} toast={toast}/>}
+        {mode === "customer" && <CustomerApp tariff={tariff} openDriver={() => openDriver()} openDriverRegistration={() => openDriver("registration")} openAdmin={() => setMode("admin")} toast={toast}/>}
+        {mode === "driver" && <DriverApp close={() => setMode("customer")} initialScreen={driverStart} tariff={tariff} toast={toast}/>}
         {mode === "admin" && <AdminApp close={() => setMode("customer")} tariff={tariff} setTariff={setTariff} toast={toast}/>}
         <Toast message={message}/>
       </div>
