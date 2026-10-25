@@ -1,36 +1,39 @@
-.accountApp h1 { white-space: pre-line; font-size: clamp(30px, 8vw, 40px); overflow-wrap: anywhere; }
+.accountApp h1 { white-space: pre-line; font-size: clamp(30px, 8vw, 40px); line-height: 1.06; letter-spacing: -1.25px; overflow-wrap: anywhere; }
 .accountApp h2 { font-size: 23px; margin: 0; }
-.accountSymbol { display: inline-flex; align-items: center; justify-content: center; width: 62px; height: 62px; border-radius: 22px; background: #ffdb16; color: #090a0b; flex-shrink: 0; }
+.accountSymbol { display: inline-flex; align-items: center; justify-content: center; width: 62px; height: 62px; border-radius: 22px; background: linear-gradient(145deg, #ffe968, #ffd21e); color: var(--yellow-ink); box-shadow: 0 14px 30px rgba(255, 212, 31, .19); flex-shrink: 0; }
 .accountLogin strong, .accountIdentity p { overflow-wrap: anywhere; }
 .accountOtp { font-size: 30px !important; text-align: center; letter-spacing: .35em; font-variant-numeric: tabular-nums; }
-.accountTextButton { display: inline-flex; gap: 8px; align-items: center; justify-content: center; border: 0; background: transparent; color: #d5d5d9; padding: 12px 5px; min-height: 44px; cursor: pointer; font: inherit; font-size: 15px; }
+.accountTextButton { display: inline-flex; gap: 8px; align-items: center; justify-content: center; border: 0; background: transparent; color: #dce1e9; padding: 12px 5px; min-height: 44px; cursor: pointer; font: inherit; font-size: 15px; transition: color .18s ease, transform .18s ease; }
+.accountTextButton:hover:not(:disabled) { color: var(--yellow); transform: translateX(2px); }
 .accountTextButton:disabled { opacity: .5; cursor: default; }
 .accountIdentity { display: flex; gap: 15px; align-items: center; }
 .accountIdentity p { margin: 6px 0; font-size: 16px; }
-.accountLink { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px; min-height: 64px; margin-top: 16px; border-radius: 20px; background: #ffdb16; color: #0b0b0b; text-decoration: none; font-size: 16px; font-weight: 900; }
-.accountSection { margin: 35px 0; border-top: 1px solid #27282d; padding-top: 28px; }
+.accountLink { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px; min-height: 64px; margin-top: 16px; border-radius: 20px; background: linear-gradient(135deg, #ffe45c, #ffd21d); color: var(--yellow-ink); text-decoration: none; font-size: 16px; font-weight: 900; box-shadow: 0 15px 32px rgba(255, 212, 31, .18); transition: transform .18s ease, box-shadow .18s ease, filter .18s ease; }
+.accountLink:hover { filter: brightness(1.03); transform: translateY(-1px); box-shadow: 0 19px 38px rgba(255, 212, 31, .24); }
+.accountSection { margin: 35px 0; border-top: 1px solid rgba(95, 106, 124, .38); padding-top: 28px; }
 .accountHeading { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; }
 .accountHeading > svg { color: #ffdb16; flex-shrink: 0; }
 .accountStatus, .accountReview { display: flex; flex-direction: column; gap: 8px; padding: 22px; margin-bottom: 18px; }
 .accountStatus > b { font-size: 22px; color: #ffdb16; }
-.accountStatus p, .accountReview p { line-height: 1.5; margin: 8px 0; color: #a9abb3; overflow-wrap: anywhere; }
-.accountCheck { display: flex; align-items: flex-start; gap: 12px; font-size: 14px; line-height: 1.5; color: #c3c4cc; }
+.accountStatus p, .accountReview p { line-height: 1.55; margin: 8px 0; color: #b6becb; overflow-wrap: anywhere; }
+.accountCheck { display: flex; align-items: flex-start; gap: 12px; font-size: 14px; line-height: 1.55; color: #c8cfda; }
 .accountCheck input { width: 22px; height: 22px; flex-shrink: 0; accent-color: #ffdb16; }
-.accountApp textarea { min-height: 100px; font: inherit; color: #fff; background: #101115; border: 1px solid #303138; border-radius: 16px; padding: 14px; resize: vertical; width: 100%; }
+.accountApp textarea { min-height: 100px; font: inherit; color: #fff; background: rgba(16, 20, 28, .9); border: 1px solid var(--line); border-radius: 16px; padding: 14px; resize: vertical; width: 100%; }
 .accountReview dl { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 14px; }
 .accountReview dt { color: #9c9da7; }
 .accountReview dd { margin: 0; overflow-wrap: anywhere; }
-.accountSaved { color: #b5e6c4; }
-.accountProfileCard { padding: 19px; display: grid; gap: 8px; }
+.accountSaved { color: var(--success); }
+.accountProfileCard { padding: 19px; display: grid; gap: 8px; background: linear-gradient(145deg, rgba(32, 38, 50, .98), rgba(20, 24, 33, .98)); }
 .accountProfileCard .accountHeading { margin-bottom: 4px; }
 .accountProfileCard .accountTextButton { justify-self: start; }
-.accountVerified { display: flex; gap: 9px; align-items: flex-start; color: #b9bfc8; font-size: 14px; line-height: 1.5; }
-.accountVerified svg { color: #b5e6c4; flex-shrink: 0; margin-top: 2px; }
+.accountVerified { display: flex; gap: 9px; align-items: flex-start; color: #c2c9d4; font-size: 14px; line-height: 1.5; }
+.accountVerified svg { color: var(--success); flex-shrink: 0; margin-top: 2px; }
 .accountVerified span { overflow-wrap: anywhere; min-width: 0; }
-.accountOption { display: flex; align-items: center; gap: 14px; min-height: 82px; padding: 17px; border: 1px solid #292b31; border-radius: 20px; background: #111216; color: #fff; text-decoration: none; }
+.accountOption { display: flex; align-items: center; gap: 14px; min-height: 82px; padding: 17px; border: 1px solid rgba(83, 94, 112, .52); border-radius: 20px; background: linear-gradient(145deg, rgba(28, 33, 44, .98), rgba(18, 22, 30, .98)); color: #fff; text-decoration: none; box-shadow: var(--shadow); transition: transform .18s ease, border-color .18s ease, background .18s ease; }
+.accountOption:hover { transform: translateY(-1px); border-color: rgba(255, 220, 46, .4); background: linear-gradient(145deg, rgba(34, 41, 54, .98), rgba(21, 25, 34, .98)); }
 .accountOption > svg { color: #ffdb16; flex-shrink: 0; }
 .accountOption > span { flex: 1; min-width: 0; display: grid; gap: 6px; }
 .accountOption b { font-size: 17px; }
-.accountOption small { color: #aeb2bb; line-height: 1.4; }
-.accountConnection { display: grid; gap: 18px; padding: 23px; }
+.accountOption small { color: #b2bbc9; line-height: 1.45; }
+.accountConnection { display: grid; gap: 18px; padding: 23px; background: linear-gradient(145deg, rgba(28, 33, 44, .98), rgba(18, 22, 30, .98)); }
 .accountConnection > svg { color: #ffdb16; }

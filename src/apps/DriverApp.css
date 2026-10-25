@@ -54,7 +54,8 @@
   gap: 8px;
   padding: 12px 18px calc(env(safe-area-inset-bottom) + 16px);
   border-top: 1px solid var(--line);
-  background: var(--bg);
+  background: linear-gradient(180deg, rgba(13,15,19,.88), var(--bg) 42%);
+  box-shadow: 0 -14px 32px rgba(0,0,0,.12);
 }
 
 .driverActions .button {
@@ -73,7 +74,7 @@
   min-height: 44px;
   padding: 8px;
   border-radius: 12px;
-  color: var(--muted);
+  color: #b6bfcc;
   background: transparent;
   font-size: 10px;
   font-weight: 800;
@@ -83,6 +84,7 @@
   outline: 2px solid var(--yellow);
   outline-offset: 3px;
 }
+.driverExit:hover:not(:disabled) { color: var(--yellow); background: rgba(255,220,46,.06); }
 
 .driverContent .vehicleImage {
   display: flex;

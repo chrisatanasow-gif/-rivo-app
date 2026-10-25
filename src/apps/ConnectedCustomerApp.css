@@ -1,21 +1,22 @@
-.connectedCustomer .connectedNote { margin: 0; color: #aeb2ba; font-size: 12px; line-height: 1.5; }
+.connectedCustomer .connectedNote { margin: 0; color: #b3bdcb; font-size: 12px; line-height: 1.55; }
 .connectedCustomer .map { width: 100%; height: clamp(220px, 33svh, 310px); min-height: 0; }
 .connectedCustomer .connectedSummary { padding: 12px 14px; overflow-wrap: anywhere; }
-.connectedCustomer .rideProgress { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; margin: 0; padding: 2px 0 0; list-style: none; }
-.connectedCustomer .rideProgress li { position: relative; display: grid; justify-items: center; gap: 6px; min-width: 0; color: #777c86; text-align: center; }
-.connectedCustomer .rideProgress li:not(:last-child)::after { content: ""; position: absolute; z-index: 0; top: 15px; left: calc(50% + 16px); width: calc(100% - 29px); height: 2px; background: var(--line); }
-.connectedCustomer .rideProgress li.done:not(:last-child)::after { background: #ffdb16; }
-.connectedCustomer .rideProgressDot { position: relative; z-index: 1; display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 50%; background: var(--panel); color: #aeb2ba; font-size: 12px; font-weight: 900; }
-.connectedCustomer .rideProgress li.done .rideProgressDot { border-color: #ffdb16; background: #ffdb16; color: #111; }
+.connectedCustomer .rideProgress { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; margin: 0; padding: 4px 0 0; list-style: none; }
+.connectedCustomer .rideProgress li { position: relative; display: grid; justify-items: center; gap: 7px; min-width: 0; color: #8993a3; text-align: center; }
+.connectedCustomer .rideProgress li:not(:last-child)::after { content: ""; position: absolute; z-index: 0; top: 16px; left: calc(50% + 17px); width: calc(100% - 31px); height: 2px; background: #303847; }
+.connectedCustomer .rideProgress li.done:not(:last-child)::after { background: linear-gradient(90deg, #ffd21d, #ffe66a); }
+.connectedCustomer .rideProgressDot { position: relative; z-index: 1; display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid #3e485a; border-radius: 50%; background: #1b202b; color: #b6bfcc; font-size: 12px; font-weight: 900; box-shadow: 0 5px 14px rgba(0, 0, 0, .18); }
+.connectedCustomer .rideProgress li.done .rideProgressDot { border-color: #ffdc2e; background: linear-gradient(145deg, #ffe967, #ffd11c); color: var(--yellow-ink); }
 .connectedCustomer .rideProgress li.current { color: #fff; }
-.connectedCustomer .rideProgress li.current .rideProgressDot { border-color: #ffdb16; box-shadow: 0 0 0 4px rgba(255, 219, 22, .12); color: #ffdb16; }
+.connectedCustomer .rideProgress li.current .rideProgressDot { border-color: #ffdc2e; box-shadow: 0 0 0 5px rgba(255, 220, 46, .12), 0 7px 18px rgba(0, 0, 0, .2); color: #ffdc2e; }
 .connectedCustomer .rideProgress small { overflow-wrap: anywhere; font-size: 9px; font-weight: 750; letter-spacing: .02em; line-height: 1.2; }
 .connectedSummary .summaryLine { padding: 8px 0; }
 .connectedSummary > small { display: block; margin-top: 8px; }
 .connectedSummary p { font-size: 13px; line-height: 1.5; }
 .connectedCustomer .historySummary { display: grid; gap: 7px; }
 .connectedCustomer .historySummary p { margin: 0; }
-.connectedCustomer .historySummary button { justify-self: start; min-height: 44px; padding: 0 14px; border: 1px solid #6b5b19; border-radius: 12px; background: #201c0b; color: #ffdb16; font: inherit; font-size: 11px; font-weight: 850; }
+.connectedCustomer .historySummary button { justify-self: start; min-height: 44px; padding: 0 14px; border: 1px solid rgba(255, 220, 46, .38); border-radius: 12px; background: rgba(255, 220, 46, .08); color: #ffdc2e; font: inherit; font-size: 11px; font-weight: 850; transition: background .18s ease, transform .18s ease; }
+.connectedCustomer .historySummary button:hover { background: rgba(255, 220, 46, .13); transform: translateY(-1px); }
 .connectedCustomer .historyTimes { display: grid; gap: 12px; }
 .connectedCustomer .historyTimes span { display: grid; gap: 4px; }
 .connectedCustomer .historyTimes small { color: #aeb2ba; font-size: 10px; letter-spacing: .08em; }
@@ -23,33 +24,33 @@
 .connectedCustomer .driverProfile { grid-template-columns: 44px minmax(0, 1fr); }
 .connectedCustomer .driverProfile strong { display: block; margin-top: 5px; font-size: 14px; }
 .connectedCustomer .driverContact { grid-column: 1 / -1; display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
-.connectedCustomer .driverContact a { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border: 1px solid #6b5b19; border-radius: 12px; background: #201c0b; color: #ffdb16; font-size: 12px; font-weight: 850; text-decoration: none; }
+.connectedCustomer .driverContact a { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border: 1px solid rgba(255, 220, 46, .38); border-radius: 12px; background: rgba(255, 220, 46, .08); color: #ffdc2e; font-size: 12px; font-weight: 850; text-decoration: none; }
 .connectedCustomer .driverContact small { color: #aeb2ba; font-size: 11px; line-height: 1.45; }
-.connectedSession { display: flex; align-items: center; gap: 8px; color: #b9bec7; font-size: 12px; }
+.connectedSession { display: flex; align-items: center; gap: 8px; color: #c3cad5; font-size: 12px; }
 .connectedSession > span { flex: 1; overflow-wrap: anywhere; }
-.connectedSession button { display: grid; place-items: center; min-width: 44px; min-height: 44px; border-radius: 12px; background: var(--panel2); color: #fff; }
-.connectedPlace { width: 100%; padding: 13px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: #fff; text-align: left; font-size: 14px; }
+.connectedSession button { display: grid; place-items: center; min-width: 44px; min-height: 44px; border-radius: 12px; background: var(--panel2); border: 1px solid rgba(91, 102, 120, .46); color: #fff; }
+.connectedPlace { width: 100%; padding: 13px; border: 1px solid rgba(91, 102, 120, .46); border-radius: 14px; background: var(--panel); color: #fff; text-align: left; font-size: 14px; }
 .connectedPlace span { display: block; margin-top: 5px; font-size: 11px; color: #aeb2ba; }
 .connectedCustomer .headerRight .pill { white-space: normal; text-align: center; font-size: 9px; padding: 8px; max-width: 126px; }
 .connectedCustomer .cancelConfirm:disabled { opacity: .45; }
 .connectedCustomer .optionRow { flex-wrap: wrap; }
 .connectedGps{display:grid;gap:8px;color:#aeb2ba}
 .connectedGps p{margin:0;font-size:12px;line-height:1.5}
-.connectedGps.fresh p{color:#a9e5c3}
-.connectedGps.stale p{color:#ffd99e}
+.connectedGps.fresh p{color:var(--success)}
+.connectedGps.stale p{color:var(--warning)}
 .connectedGps small{font-size:11px;line-height:1.5}
 .connectedGps button{display:flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:#fff;font-size:12px}
 .gpsAnnouncement{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .pickupLocation { display: grid; gap: 8px; }
-.pickupLocationButton { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 48px; padding: 12px; border: 1px solid #6b5b19; border-radius: 15px; background: #201c0b; color: #ffdb16; font: inherit; font-size: 12px; font-weight: 850; }
+.pickupLocationButton { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 48px; padding: 12px; border: 1px solid rgba(255, 220, 46, .38); border-radius: 15px; background: rgba(255, 220, 46, .08); color: #ffdc2e; font: inherit; font-size: 12px; font-weight: 850; }
 .pickupLocationButton svg { flex-shrink: 0; }
 .pickupLocationHint { margin: 0; color: #aeb2ba; font-size: 11px; line-height: 1.5; }
-.pickupLocationHint.error { color: #ffd49e; }
-.pickupLocationHint.ready { color: #b5e6c4; }
-.availabilityNotice { display: grid; gap: 9px; border-color: #6b5b19; background: #201c0b; }
+.pickupLocationHint.error { color: var(--warning); }
+.pickupLocationHint.ready { color: var(--success); }
+.availabilityNotice { display: grid; gap: 9px; border-color: rgba(255, 200, 111, .36); background: linear-gradient(145deg, rgba(62, 49, 23, .56), rgba(35, 30, 21, .82)); }
 .availabilityNotice h2 { margin: 0; font-size: 17px; line-height: 1.2; color: #fff; }
-.availabilityNotice p, .availabilityReady, .retryRouteNotice { margin: 0; color: #d4c9a5; font-size: 12px; line-height: 1.5; }
-.availabilityNotice button { min-height: 44px; border: 1px solid #6b5b19; border-radius: 12px; background: var(--panel); color: #ffdb16; font: inherit; font-size: 12px; font-weight: 850; }
+.availabilityNotice p, .availabilityReady, .retryRouteNotice { margin: 0; color: #ded2aa; font-size: 12px; line-height: 1.55; }
+.availabilityNotice button { min-height: 44px; border: 1px solid rgba(255, 220, 46, .38); border-radius: 12px; background: rgba(20, 24, 32, .78); color: #ffdc2e; font: inherit; font-size: 12px; font-weight: 850; }
 .availabilityNotice button:disabled { opacity: .5; }
-.availabilityReady { color: #b5e6c4; }
-.retryRouteNotice { padding: 10px 12px; border-left: 3px solid #ffdb16; background: #201c0b; border-radius: 0 10px 10px 0; }
+.availabilityReady { color: var(--success); }
+.retryRouteNotice { padding: 10px 12px; border-left: 3px solid #ffdc2e; background: rgba(255, 220, 46, .075); border-radius: 0 10px 10px 0; }
