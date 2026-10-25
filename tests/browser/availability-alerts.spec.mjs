@@ -12,9 +12,9 @@ async function account(context,email,name) {
   await post(context,"/api/account?action=profile",{name});
 }
 const rideApi = (role,action) => `/api/member-rides?role=${role}&action=${action}`;
-async function driver(context,reviewer) {
+async function driver(context,reviewer,sharePhone=false) {
   await account(context,unique("alerts-driver"),"Шофьор Известия");
-  const {application}=await post(context,"/api/account?action=apply",{legalName:"Шофьор Тест",phone:"+359888000000",vehicleModel:"Тестова кола",vehiclePlate:"PK TEST",certificateNumber:"TEST",permitNumber:"TEST",permitValidUntil:"2027-12-31",licensed:true});
+  const {application}=await post(context,"/api/account?action=apply",{legalName:"Шофьор Тест",phone:"+359888000000",vehicleModel:"Тестова кола",vehiclePlate:"PK TEST",certificateNumber:"TEST",permitNumber:"TEST",permitValidUntil:"2027-12-31",licensed:true,sharePhone});
   await post(reviewer,"/api/account?action=review",{accountId:application.accountId,revision:application.revision,status:"approved",documentsChecked:true,note:"Проверени тестови документи"});
 }
 async function create(context) {
@@ -138,6 +138,24 @@ test("no free driver is separate from waiting and a confirmed retry keeps the ro
     await expect(page.getByRole("heading",{name:"Заявката е изпратена",exact:true})).toBeVisible();
     const state=await (await customer.request.get(rideApi("customer","state"))).json();
     await post(customer,rideApi("customer","transition"),{rideId:state.activeRide.id,command:"cancel"});
+  } finally {await Promise.all([customer.close(),drv.close(),owner.close()]);}
+});
+
+test("an opted-in assigned driver has a call link only while the shared course is active",async({browser})=>{
+  const customer=await browser.newContext({viewport:{width:320,height:568}}),drv=await browser.newContext(),owner=await browser.newContext();
+  try {
+    await account(customer,unique("contact-customer"),"Пътник Контакт");
+    await account(owner,"alerts-reviewer@example.invalid","Екип Контакт");
+    await driver(drv,owner,true); await online(drv);
+    const ride=await create(customer);
+    await post(drv,rideApi("driver","transition"),{rideId:ride.id,command:"accept"});
+    const page=await customer.newPage(); await page.goto("/account/ride");
+    const call=page.getByTestId("driver-call");
+    await expect(call).toHaveAttribute("href","tel:359888000000");
+    const box=await call.boundingBox(); expect(box.width).toBeGreaterThan(150);
+    for(const command of ["arrive","start","complete"]) await post(drv,rideApi("driver","transition"),{rideId:ride.id,command});
+    await expect(page.getByRole("heading",{name:"Курсът е завършен",exact:true})).toBeVisible();
+    await expect(call).toHaveCount(0);
   } finally {await Promise.all([customer.close(),drv.close(),owner.close()]);}
 });
 

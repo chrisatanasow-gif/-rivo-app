@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS rivo_driver_applications (
   revision integer NOT NULL DEFAULT 1,
   legal_name text NOT NULL,
   phone text NOT NULL,
+  contact_phone_enabled boolean NOT NULL DEFAULT false,
   vehicle_model text NOT NULL,
   vehicle_plate text NOT NULL,
   certificate_number text NOT NULL,
@@ -75,6 +76,9 @@ CREATE TABLE IF NOT EXISTS rivo_driver_applications (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+-- Existing Preview databases already have this table. Keep the migration
+-- additive so drivers must actively opt in before their number can be shared.
+ALTER TABLE rivo_driver_applications ADD COLUMN IF NOT EXISTS contact_phone_enabled boolean NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS rivo_driver_reviews (
   id uuid PRIMARY KEY,

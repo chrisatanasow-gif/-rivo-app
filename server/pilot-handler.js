@@ -47,17 +47,19 @@ function participant(row) {
   };
 }
 
-function ride(row) {
+function ride(row, includeDriverPhone = false) {
   const tracking = ["accepted", "arrived", "in_progress"].includes(row.status);
   const updatedAt = row.driver_location_updated_at;
   const visible = tracking && row.driver_tracking_id && validDriverPosition(row.driver_location)
     && Date.now() - new Date(updatedAt).getTime() < GPS_VISIBLE_MS;
+  const shareDriverPhone = includeDriverPhone && tracking && Boolean(row.driver_contact_enabled) && typeof row.driver_phone === "string";
   return {
     id: row.id, status: row.status, revision: row.revision, service: "rivo",
     pickup: row.pickup, destination: row.destination, vehicleType: row.vehicle_type,
     passengers: row.passengers, priceCents: row.price_cents, currency: "EUR", fare: row.fare_quote || null,
     customerName: row.customer_name,
-    driver: row.driver_id ? { name: row.driver_name, vehicleModel: row.driver_model, vehiclePlate: row.driver_plate } : null,
+    driver: row.driver_id ? { name: row.driver_name, vehicleModel: row.driver_model, vehiclePlate: row.driver_plate,
+      ...(shareDriverPhone ? { phone: row.driver_phone } : {}) } : null,
     driverTracking: Boolean(tracking && row.driver_tracking_id),
     driverLocation: visible ? { lat: row.driver_location.lat, lng: row.driver_location.lng, accuracy: row.driver_location.accuracy, updatedAt } : null,
     createdAt: row.created_at, updatedAt: row.updated_at, expiresAt: row.expires_at
@@ -99,6 +101,15 @@ export function createPilotHandler({ query, accessCode, resolveParticipant, ride
   const gateHash = hash(accessCode || "");
   const quotes = createFareQuotes({ query, resolveRoute, now });
   const cookie = (token, age = 86400) => `${COOKIE}=${token}; Path=/api/pilot; HttpOnly; SameSite=Strict; Max-Age=${age}${secureCookies ? "; Secure" : ""}`;
+  // Invitation-only rides have no account application data. Member rides may
+  // join it, but the phone is later serialized only for the assigned customer.
+  const selectRides = resolveParticipant ? `SELECT r.*, c.display_name AS customer_name,
+    d.display_name AS driver_name, d.vehicle_model AS driver_model, d.vehicle_plate AS driver_plate,
+    a.phone AS driver_phone, a.contact_phone_enabled AS driver_contact_enabled
+    FROM rivo_pilot_rides r
+    JOIN rivo_pilot_sessions c ON c.id = r.customer_id
+    LEFT JOIN rivo_pilot_sessions d ON d.id = r.driver_id
+    LEFT JOIN rivo_driver_applications a ON a.account_id = d.account_id` : SELECT_RIDES;
 
   async function sessionFor(req) {
     if (resolveParticipant) return resolveParticipant(req);
@@ -109,7 +120,7 @@ export function createPilotHandler({ query, accessCode, resolveParticipant, ride
   }
 
   const expireWaiting = () => query("UPDATE rivo_pilot_rides SET status = 'expired', revision = revision + 1, updated_at = now() WHERE status = 'waiting' AND expires_at <= now()", []);
-  const getRide = async id => (await query(`${SELECT_RIDES} WHERE r.id = $1`, [id]))[0];
+  const getRide = async id => (await query(`${selectRides} WHERE r.id = $1`, [id]))[0];
   const availability = async session => {
     // This is intentionally a yes/no snapshot. A driver can still go offline or
     // accept another ride before this passenger submits a request.
@@ -215,11 +226,12 @@ export function createPilotHandler({ query, accessCode, resolveParticipant, ride
       if (!["tracking", "position"].includes(action)) await expireWaiting();
       if (action === "state" && req.method === "GET") {
         const presence = rideAlerts ? await rideAlerts.presence(session) : null;
-        const mine = await query(`${SELECT_RIDES} WHERE r.${session.role === "customer" ? "customer_id" : "driver_id"} = $1 ORDER BY r.created_at DESC LIMIT 10`, [session.id]);
+        const mine = await query(`${selectRides} WHERE r.${session.role === "customer" ? "customer_id" : "driver_id"} = $1 ORDER BY r.created_at DESC LIMIT 10`, [session.id]);
         const active = mine.find(row => ACTIVE.includes(row.status));
         const available = session.role === "driver" && !active && (!resolveParticipant || session.can_accept) && (!rideAlerts || presence?.online)
-          ? await query(`${SELECT_RIDES} WHERE r.status = 'waiting' AND r.expires_at > now() AND c.account_id IS ${resolveParticipant ? "NOT " : ""}NULL${resolveParticipant ? " AND c.account_id <> $1" : ""} ORDER BY r.created_at LIMIT 20`, resolveParticipant ? [session.account_id] : []) : [];
-        return send(200, { participant: participant(session), tariff: DEFAULT_TARIFF, activeRide: active ? ride(active) : null, rides: mine.map(ride), requests: available.map(ride),
+          ? await query(`${selectRides} WHERE r.status = 'waiting' AND r.expires_at > now() AND c.account_id IS ${resolveParticipant ? "NOT " : ""}NULL${resolveParticipant ? " AND c.account_id <> $1" : ""} ORDER BY r.created_at LIMIT 20`, resolveParticipant ? [session.account_id] : []) : [];
+        const ownCustomerRide = row => ride(row, session.role === "customer");
+        return send(200, { participant: participant(session), tariff: DEFAULT_TARIFF, activeRide: active ? ownCustomerRide(active) : null, rides: mine.map(ownCustomerRide), requests: available.map(row => ride(row)),
           ...(session.role === "customer" && !active ? { availability: await availability(session) } : {}),
           ...(rideAlerts ? { presence, serverTime: new Date().toISOString() } : {}) });
       }

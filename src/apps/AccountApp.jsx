@@ -50,15 +50,20 @@ function DriverApplication({ app, run, busy, refresh, onSaved }) {
       <button type="button" className="accountTextButton" disabled={busy} onClick={() => run(refresh)}><RefreshCw size={16}/> Провери статуса</button>
       <a className="accountLink" href="/account/drive">{VALID(app) ? "КЪМ ЗАЯВКИТЕ" : "КЪМ ШОФЬОРСКИЯ РЕЖИМ"}<ArrowRight size={18}/></a>
       <button type="button" className="accountTextButton" disabled={busy} onClick={() => setEditing(!editing)}>{editing ? "Затвори редакцията" : "Промени данните"}</button>
+      <label className="accountCheck accountContactConsent"><input type="checkbox" checked={Boolean(app.contactPhoneShared)} disabled={busy} onChange={event => {
+        const sharePhone = event.currentTarget.checked;
+        run(async () => { const result = await accountRequest("contact-consent", { sharePhone }); onSaved(result.application); });
+      }}/><span>Позволявам служебният ми телефон да се вижда само от пътника по моя приет активен курс. Мога да го изключа по всяко време.</span></label>
     </Card>}
     {editing && <form className="pilotForm" onSubmit={e => {
       e.preventDefault(); const data = Object.fromEntries(new FormData(e.currentTarget));
-      run(async () => { const result = await accountRequest("apply", { ...data, licensed: data.licensed === "on" }); onSaved(result.application); setEditing(false); });
+      run(async () => { const result = await accountRequest("apply", { ...data, licensed: data.licensed === "on", sharePhone: data.sharePhone === "on" }); onSaved(result.application); setEditing(false); });
     }}>
       <p className="muted">За действащи лицензирани таксиметрови шофьори със собствен автомобил в Перник.</p>
       {fields.map(([key, label, max]) => <label key={key} className="pilotField">{label}<input name={key} required minLength={2} maxLength={max} type={key === "phone" ? "tel" : "text"} autoComplete={key === "phone" ? "tel" : "off"} defaultValue={app?.[key] || ""} disabled={busy}/></label>)}
       <label className="pilotField">Разрешението е валидно до<input type="date" name="permitValidUntil" min={accountDate()} defaultValue={app?.permitValidUntil || ""} required disabled={busy}/></label>
       <label className="accountCheck"><input type="checkbox" name="licensed" required disabled={busy}/><span>Потвърждавам, че съм действащ лицензиран таксиметров шофьор и посоченият автомобил има валидно разрешение.</span></label>
+      <label className="accountCheck"><input type="checkbox" name="sharePhone" defaultChecked={Boolean(app?.contactPhoneShared)} disabled={busy}/><span>Съгласявам се служебният ми телефон да се вижда само от пътника по приет активен курс. Мога да оттегля съгласието по всяко време.</span></label>
       <p className="pilotNote">При промяна кандидатурата отново минава през преглед. Не въвеждай ЕГН. Документите се проверяват лично от екипа на RIVO.</p>
       <Button type="submit" disabled={busy}>{busy ? "ИЗПРАЩАМЕ…" : "ИЗПРАТИ ЗА ПРЕГЛЕД"}</Button>
     </form>}

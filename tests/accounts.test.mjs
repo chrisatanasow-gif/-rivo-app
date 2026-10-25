@@ -30,8 +30,8 @@ async function login(email = "customer@example.invalid") {
 async function named(email, name = "Пътник Тест") { const cookie = await login(email); assert.equal((await accountReq("profile", { name }, cookie)).status, 200); return cookie; }
 const draft = () => ({ idempotencyKey: randomUUID(), pickup: { label: "Център, Перник", lat: 42.6052, lng: 23.0379 }, destination: { label: "Изток, Перник", lat: 42.6048, lng: 23.0422 }, passengers: 1 });
 async function createRide(cookie, handler = rides) { const body = draft(); const quote = await rideReq("customer", "quote", body, cookie, handler); assert.equal(quote.status, 200); return rideReq("customer", "create", { ...body, quoteToken: quote.data.quote.token }, cookie, handler); }
-const application = () => ({ legalName: "Шофьор Тест", phone: "+359888123456", vehicleModel: "Тестов автомобил", vehiclePlate: "PK 1234 AA", certificateNumber: "TEST-CERT-123", permitNumber: "TEST-PERMIT-123", permitValidUntil: "2027-12-31", licensed: true });
-async function apply(cookie) { const response = await accountReq("apply", application(), cookie); assert.equal(response.status, 200); return response.data.application; }
+const application = (change = {}) => ({ legalName: "Шофьор Тест", phone: "+359888123456", vehicleModel: "Тестов автомобил", vehiclePlate: "PK 1234 AA", certificateNumber: "TEST-CERT-123", permitNumber: "TEST-PERMIT-123", permitValidUntil: "2027-12-31", licensed: true, sharePhone: false, ...change });
+async function apply(cookie, change) { const response = await accountReq("apply", application(change), cookie); assert.equal(response.status, 200); return response.data.application; }
 async function review(owner, app, status = "approved", extra = {}) { return accountReq("review", { accountId: app.accountId, revision: app.revision, status, documentsChecked: true, note: "Проверени тестови документи", ...extra }, owner); }
 async function online(cookie) {
   const state = await rideReq("driver", "state", undefined, cookie);
@@ -178,6 +178,36 @@ test("revocation blocks new rides atomically but lets the assigned driver finish
   for (const command of ["arrive", "start", "complete"]) assert.equal((await rideReq("driver", "transition", { rideId: id, command }, driver)).status, 200);
   id = (await createRide(customer)).data.ride.id;
   assert.equal((await rideReq("driver", "transition", { rideId: id, command: "accept" }, driver)).status, 409);
+});
+
+test("a driver phone is opt-in, revocable and visible only to the assigned customer during an active ride", async () => {
+  const customer = await named("customer@example.invalid");
+  const driver = await named("driver@example.invalid", "Шофьор Тест");
+  const owner = await named("reviewer@example.invalid", "Екип Тест");
+  let app = await apply(driver);
+  assert.equal(app.contactPhoneShared, false);
+  await review(owner, app); await online(driver);
+  const id = (await createRide(customer)).data.ride.id;
+  assert.equal((await rideReq("driver", "transition", { rideId: id, command: "accept" }, driver)).status, 200);
+
+  let customerState = (await rideReq("customer", "state", undefined, customer)).data;
+  assert.equal(customerState.activeRide.driver.phone, undefined);
+  assert.equal((await rideReq("driver", "state", undefined, driver)).data.activeRide.driver.phone, undefined);
+
+  const consent = await accountReq("contact-consent", { sharePhone: true }, driver);
+  assert.equal(consent.status, 200); assert.equal(consent.data.application.contactPhoneShared, true);
+  customerState = (await rideReq("customer", "state", undefined, customer)).data;
+  assert.equal(customerState.activeRide.driver.phone, "+359888123456");
+  // The driver state does not echo the phone, and an unrelated customer has no ride data to inspect.
+  assert.equal((await rideReq("driver", "state", undefined, driver)).data.activeRide.driver.phone, undefined);
+  const otherCustomer = await named("other@example.invalid");
+  assert.deepEqual((await rideReq("customer", "state", undefined, otherCustomer)).data.rides, []);
+
+  assert.equal((await accountReq("contact-consent", { sharePhone: false }, driver)).status, 200);
+  customerState = (await rideReq("customer", "state", undefined, customer)).data;
+  assert.equal(customerState.activeRide.driver.phone, undefined);
+  for (const command of ["arrive", "start", "complete"]) assert.equal((await rideReq("driver", "transition", { rideId: id, command }, driver)).status, 200);
+  assert.equal((await rideReq("customer", "state", undefined, customer)).data.rides[0].driver.phone, undefined);
 });
 
 test("invitation drivers and account requests are isolated in both queue and atomic accept", async () => {

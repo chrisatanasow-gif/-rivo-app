@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { History, LocateFixed, LogOut, RefreshCw, Users } from "lucide-react";
+import { History, LocateFixed, LogOut, Phone, RefreshCw, Users } from "lucide-react";
 import { Button, Card, Pill } from "../components/UI.jsx";
 import { AddressField, AddressSuggestions, CancelRideDialog, CustomerScreen, Stepper } from "../components/BookingUI.jsx";
 import RivoMap from "../components/RivoMap.jsx";
@@ -34,6 +34,13 @@ function TripSummary({ ride }) {
 
 function Price({ fare, priceCents }) {
   return <><Card className="priceSummary"><span><small>ПРЕДВАРИТЕЛНА ОЦЕНКА</small><b>RIVO</b></span><strong data-testid="fare-total">{formatMoney(priceCents ?? fare.priceCents)}</strong></Card><FareBreakdown fare={fare}/></>;
+}
+
+function DriverProfile({ driver }) {
+  const telephone = driver.phone?.replace(/\D/g, "");
+  return <Card className="driverProfile"><span className="driverAvatar" aria-hidden="true">{driver.name[0]}</span><div className="grow"><b>{driver.name}</b><small>{driver.vehicleModel}</small><strong className="yellow">{driver.vehiclePlate}</strong></div>
+    {telephone && <div className="driverContact"><a href={`tel:${telephone}`} data-testid="driver-call" aria-label={`Обади се на ${driver.name}`}><Phone size={17} aria-hidden="true"/> Обади се</a><small>Шофьорът е споделил служебен номер само за този активен курс.</small></div>}
+  </Card>;
 }
 
 function AvailabilityNotice({ availability, busy, onRefresh }) {
@@ -137,7 +144,7 @@ export default function ConnectedCustomerApp({ state, busy, error, syncError, on
     {notices}
     <div className="statusHeader" aria-live="polite"><div><span className="eyebrow">ТВОЯТА ЗАЯВКА</span><h1>{STAGES[ride.status][1]}</h1><p className="muted">{STAGES[ride.status][2]}</p></div></div>
     {!terminal && map}
-    {ride.driver && <Card className="driverProfile"><span className="driverAvatar" aria-hidden="true">{ride.driver.name[0]}</span><div className="grow"><b>{ride.driver.name}</b><small>{ride.driver.vehicleModel}</small><strong className="yellow">{ride.driver.vehiclePlate}</strong></div></Card>}
+    {ride.driver && <DriverProfile driver={ride.driver}/>}
     <TripSummary ride={ride}/><Price fare={ride.fare} priceCents={ride.priceCents}/>
     <p className="connectedNote" data-testid="ride-number">Заявка № {ride.id.slice(0, 8).toUpperCase()}</p>
   </CustomerScreen>;

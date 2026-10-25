@@ -6,6 +6,9 @@
 .connectedSummary p { font-size: 13px; line-height: 1.5; }
 .connectedCustomer .driverProfile { grid-template-columns: 44px minmax(0, 1fr); }
 .connectedCustomer .driverProfile strong { display: block; margin-top: 5px; font-size: 14px; }
+.connectedCustomer .driverContact { grid-column: 1 / -1; display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
+.connectedCustomer .driverContact a { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border: 1px solid #6b5b19; border-radius: 12px; background: #201c0b; color: #ffdb16; font-size: 12px; font-weight: 850; text-decoration: none; }
+.connectedCustomer .driverContact small { color: #aeb2ba; font-size: 11px; line-height: 1.45; }
 .connectedSession { display: flex; align-items: center; gap: 8px; color: #b9bec7; font-size: 12px; }
 .connectedSession > span { flex: 1; overflow-wrap: anywhere; }
 .connectedSession button { display: grid; place-items: center; min-width: 44px; min-height: 44px; border-radius: 12px; background: var(--panel2); color: #fff; }

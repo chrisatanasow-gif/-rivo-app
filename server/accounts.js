@@ -8,6 +8,7 @@ const driverActive = `EXISTS (SELECT 1 FROM rivo_member_rides r JOIN rivo_member
 const profile = row => ({ id: row.id, name: row.display_name, email: row.email });
 const application = row => row ? ({ accountId: row.account_id, status: row.status, revision: row.revision,
   legalName: row.legal_name, phone: row.phone, vehicleModel: row.vehicle_model, vehiclePlate: row.vehicle_plate,
+  contactPhoneShared: Boolean(row.contact_phone_enabled),
   certificateNumber: row.certificate_number, permitNumber: row.permit_number,
   permitValidUntil: new Date(row.permit_valid_until).toISOString().slice(0, 10), note: row.review_note,
   updatedAt: row.updated_at }) : null;
@@ -65,17 +66,26 @@ export function createAccounts({ query, resolveIdentity, reviewerEmails = [] }) 
       if (action === "apply" && req.method === "POST") {
         if (!account.display_name) throw new AccountError(400, "Първо запази името си.");
         if (body.licensed !== true) throw new AccountError(400, "Потвърди, че си действащ лицензиран таксиметров шофьор.");
+        if (body.sharePhone != null && typeof body.sharePhone !== "boolean") throw new AccountError(400, "Невалиден избор за споделяне на телефон.");
         const phone = field(body.phone, "Телефон", 20);
         if (!/^\+?[\d ()-]{8,20}$/.test(phone) || phone.replace(/\D/g, "").length < 8 || phone.replace(/\D/g, "").length > 15) throw new AccountError(400, "Провери телефона за връзка.");
         if (!/^\d{4}-\d{2}-\d{2}$/.test(body.permitValidUntil || "") || !Number.isFinite(new Date(body.permitValidUntil).getTime()) || new Date(body.permitValidUntil).toISOString().slice(0, 10) !== body.permitValidUntil || body.permitValidUntil < accountDate()) throw new AccountError(400, "Разрешението трябва да е валидно.");
-        const values = [account.id, field(body.legalName, "Име по документи"), phone, field(body.vehicleModel, "Автомобил"), field(body.vehiclePlate, "Регистрационен номер", 20).toUpperCase(), field(body.certificateNumber, "Удостоверение", 80), field(body.permitNumber, "Разрешение", 80), body.permitValidUntil];
-        const [row] = await query(`INSERT INTO rivo_driver_applications (account_id, legal_name, phone, vehicle_model, vehicle_plate, certificate_number, permit_number, permit_valid_until)
-          SELECT $1, $2, $3, $4, $5, $6, $7, $8::date WHERE NOT ${driverActive}
+        const values = [account.id, field(body.legalName, "Име по документи"), phone, body.sharePhone === true, field(body.vehicleModel, "Автомобил"), field(body.vehiclePlate, "Регистрационен номер", 20).toUpperCase(), field(body.certificateNumber, "Удостоверение", 80), field(body.permitNumber, "Разрешение", 80), body.permitValidUntil];
+        const [row] = await query(`INSERT INTO rivo_driver_applications (account_id, legal_name, phone, contact_phone_enabled, vehicle_model, vehicle_plate, certificate_number, permit_number, permit_valid_until)
+          SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9::date WHERE NOT ${driverActive}
           ON CONFLICT (account_id) DO UPDATE SET status = 'pending', revision = rivo_driver_applications.revision + 1,
-          legal_name = EXCLUDED.legal_name, phone = EXCLUDED.phone, vehicle_model = EXCLUDED.vehicle_model, vehicle_plate = EXCLUDED.vehicle_plate,
+          legal_name = EXCLUDED.legal_name, phone = EXCLUDED.phone, contact_phone_enabled = EXCLUDED.contact_phone_enabled,
+          vehicle_model = EXCLUDED.vehicle_model, vehicle_plate = EXCLUDED.vehicle_plate,
           certificate_number = EXCLUDED.certificate_number, permit_number = EXCLUDED.permit_number, permit_valid_until = EXCLUDED.permit_valid_until,
           review_note = '', updated_at = now() WHERE NOT ${driverActive} RETURNING *`, values);
         if (!row) throw new AccountError(409, "Приключи активния курс, преди да променяш кандидатурата.");
+        return send(200, { application: application(row) });
+      }
+      if (action === "contact-consent" && req.method === "POST") {
+        if (typeof body.sharePhone !== "boolean") throw new AccountError(400, "Избери дали споделяш служебния си телефон.");
+        const [row] = await query(`UPDATE rivo_driver_applications SET contact_phone_enabled = $2, updated_at = now()
+          WHERE account_id = $1 RETURNING *`, [account.id, body.sharePhone]);
+        if (!row) throw new AccountError(409, "Първо подай кандидатура за шофьор.");
         return send(200, { application: application(row) });
       }
       if (["applications", "review"].includes(action)) {
