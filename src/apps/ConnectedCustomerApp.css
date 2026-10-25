@@ -4,6 +4,13 @@
 .connectedSummary .summaryLine { padding: 8px 0; }
 .connectedSummary > small { display: block; margin-top: 8px; }
 .connectedSummary p { font-size: 13px; line-height: 1.5; }
+.connectedCustomer .historySummary { display: grid; gap: 7px; }
+.connectedCustomer .historySummary p { margin: 0; }
+.connectedCustomer .historySummary button { justify-self: start; min-height: 44px; padding: 0 14px; border: 1px solid #6b5b19; border-radius: 12px; background: #201c0b; color: #ffdb16; font: inherit; font-size: 11px; font-weight: 850; }
+.connectedCustomer .historyTimes { display: grid; gap: 12px; }
+.connectedCustomer .historyTimes span { display: grid; gap: 4px; }
+.connectedCustomer .historyTimes small { color: #aeb2ba; font-size: 10px; letter-spacing: .08em; }
+.connectedCustomer .historyTimes b { font-size: 13px; }
 .connectedCustomer .driverProfile { grid-template-columns: 44px minmax(0, 1fr); }
 .connectedCustomer .driverProfile strong { display: block; margin-top: 5px; font-size: 14px; }
 .connectedCustomer .driverContact { grid-column: 1 / -1; display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); }

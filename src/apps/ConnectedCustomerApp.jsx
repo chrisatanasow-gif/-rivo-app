@@ -36,6 +36,11 @@ function Price({ fare, priceCents }) {
   return <><Card className="priceSummary"><span><small>ПРЕДВАРИТЕЛНА ОЦЕНКА</small><b>RIVO</b></span><strong data-testid="fare-total">{formatMoney(priceCents ?? fare.priceCents)}</strong></Card><FareBreakdown fare={fare}/></>;
 }
 
+function rideDate(value) {
+  if (!value || Number.isNaN(new Date(value).getTime())) return "Няма записан час";
+  return new Intl.DateTimeFormat("bg-BG", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
 function DriverProfile({ driver }) {
   const telephone = driver.phone?.replace(/\D/g, "");
   return <Card className="driverProfile"><span className="driverAvatar" aria-hidden="true">{driver.name[0]}</span><div className="grow"><b>{driver.name}</b><small>{driver.vehicleModel}</small><strong className="yellow">{driver.vehiclePlate}</strong></div>
@@ -58,6 +63,7 @@ export default function ConnectedCustomerApp({ state, busy, error, syncError, on
   const places = useBookingPlaces({ requirePickup: member });
   const [step, setStep] = useState(1);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyRideId, setHistoryRideId] = useState(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [dismissed, setDismissed] = useState(() => {
@@ -67,6 +73,7 @@ export default function ConnectedCustomerApp({ state, busy, error, syncError, on
   const requestKey = useRef(null);
   const latest = state.rides[0];
   const ride = state.activeRide || (latest?.id !== dismissed ? latest : null);
+  const historyRide = historyRideId ? state.rides.find(item => item.id === historyRideId) : null;
   const terminal = Boolean(ride && TERMINAL.includes(ride.status));
   const retryable = Boolean(member && ride && ["cancelled", "expired"].includes(ride.status));
   const noDriver = Boolean(member && state.availability?.status === "none");
@@ -96,7 +103,7 @@ export default function ConnectedCustomerApp({ state, busy, error, syncError, on
   }, [step, historyOpen, ride?.id, ride?.status]);
 
   function dismiss() {
-    setDismissed(ride.id); setStep(1); setHistoryOpen(false); setRetrying(false); requestKey.current = null;
+    setDismissed(ride.id); setStep(1); setHistoryOpen(false); setHistoryRideId(null); setRetrying(false); requestKey.current = null;
     try { localStorage.setItem("rivoPilotDismissedRide", ride.id); setStorageError(false); }
     catch { setStorageError(true); }
   }
@@ -149,10 +156,18 @@ export default function ConnectedCustomerApp({ state, busy, error, syncError, on
     <p className="connectedNote" data-testid="ride-number">Заявка № {ride.id.slice(0, 8).toUpperCase()}</p>
   </CustomerScreen>;
 
+  if (historyRide) return <CustomerScreen title="Детайли за заявката" onBack={() => setHistoryRideId(null)} className="connectedCustomer historyDetails">
+    {notices}<div><span className="eyebrow">{STAGES[historyRide.status][0]}</span><h1>{STAGES[historyRide.status][1]}</h1><p className="muted">{STAGES[historyRide.status][2]}</p></div>
+    {historyRide.driver && <DriverProfile driver={historyRide.driver}/>}
+    <TripSummary ride={historyRide}/><Price fare={historyRide.fare} priceCents={historyRide.priceCents}/>
+    <Card className="connectedSummary historyTimes"><span><small>СЪЗДАДЕНА</small><b>{rideDate(historyRide.createdAt)}</b></span><span><small>ПОСЛЕДНА ПРОМЯНА</small><b>{rideDate(historyRide.updatedAt)}</b></span></Card>
+    <p className="connectedNote" data-testid="history-ride-number">Заявка № {historyRide.id.slice(0, 8).toUpperCase()}</p>
+  </CustomerScreen>;
+
   if (historyOpen) return <CustomerScreen title="Общи заявки" onBack={() => setHistoryOpen(false)} className="connectedCustomer">
     {notices}<h1>Последни заявки</h1><p className="connectedNote">{state.participant.accountId ? "Последните 10 заявки от профила ти. Пазят се и след ново влизане." : "До 10 заявки от тази тестова сесия. Демо курсовете са отделно."}</p>
     {state.rides.length === 0 && <Card className="connectedSummary"><p className="muted">Още няма общи заявки.</p></Card>}
-    {state.rides.map(item => <Card key={item.id} className="connectedSummary"><b>{STAGES[item.status][1]}</b><p>{item.pickup.label} → {item.destination.label}</p><strong className="yellow">{formatMoney(item.priceCents)}</strong><small>№ {item.id.slice(0, 8).toUpperCase()}</small></Card>)}
+    {state.rides.map(item => <Card key={item.id} className="connectedSummary historySummary"><b>{STAGES[item.status][1]}</b><p>{item.pickup.label} → {item.destination.label}</p><strong className="yellow">{formatMoney(item.priceCents)}</strong><small>№ {item.id.slice(0, 8).toUpperCase()}</small><button type="button" onClick={() => setHistoryRideId(item.id)} aria-label={`Детайли за заявка ${item.id.slice(0, 8).toUpperCase()}`}>ДЕТАЙЛИ</button></Card>)}
   </CustomerScreen>;
 
   return <CustomerScreen logo right={<Pill>ТЕСТ</Pill>} onBack={step > 1 && !busy ? () => setStep(value => value - 1) : undefined} className={`connectedCustomer ${step === 1 ? "customerRoute" : ""}`}
@@ -174,7 +189,7 @@ export default function ConnectedCustomerApp({ state, busy, error, syncError, on
       <p id="route-address-hint" className="addressHint">Точката на картата избира {places.active === "pickup" ? "мястото за взимане" : "дестинацията"}.{places.resolving && " Разпознаваме адреса…"}</p>
       {map}
       <button className="connectedPlace" onClick={() => places.choose(places.active, { label: "Перник, Изток", lat: 42.6048, lng: 23.0422 })}>Перник, Изток <span>Избери за {places.active === "pickup" ? "взимане" : "дестинация"}</span></button>
-      <div className="connectedSession"><span>Здравей, {state.participant.name}</span><button aria-label="Общи заявки" onClick={() => setHistoryOpen(true)}><History size={18}/></button><button aria-label="Изход" disabled={busy} onClick={onLogout}><LogOut size={18}/></button></div>
+      <div className="connectedSession"><span>Здравей, {state.participant.name}</span><button aria-label="Общи заявки" onClick={() => { setHistoryRideId(null); setHistoryOpen(true); }}><History size={18}/></button><button aria-label="Изход" disabled={busy} onClick={onLogout}><LogOut size={18}/></button></div>
       {state.participant.accountId && <a className="driverLiveLink" href="/account">Моят профил</a>}
       <a className="pilotBack" href="/">Към демо дизайна</a>
     </> : <>
