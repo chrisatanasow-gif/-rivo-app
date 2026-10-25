@@ -1,5 +1,13 @@
+.homeContent { gap: 12px; }
 .homeContent > * { flex-shrink: 0; min-width: 0; }
+.homeIntro { display: grid; gap: 5px; padding: 3px 1px 1px; }
 .homeIntro h1 { overflow-wrap: anywhere; }
+.homeIntro .muted { margin: 0; max-width: 29ch; }
+.homeContent .customerMapWrap { margin-top: 2px; }
+.homeSaved { display: grid; gap: 8px; padding-top: 2px; }
+.homeQuietLinks { display: flex; justify-content: center; align-items: center; gap: 8px; margin: 3px 0 8px; color: var(--muted); font-size: 11px; }
+.homeQuietLinks a { color: inherit; text-decoration: none; padding: 8px 2px; }
+.homeQuietLinks a:hover { color: var(--yellow); }
 .homeContent .savedPlaces button > div { flex: 1; min-width: 0; }
 .homeContent .savedPlaces button small { margin-top: 4px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .profileBtn { display: grid; place-items: center; }
@@ -153,3 +161,7 @@
 }
 
 .rideRecoveryNotice { margin: 0; padding: 11px 12px; border: 1px solid rgba(118,220,166,.38); border-radius: 13px; background: rgba(33,70,52,.34); color: #c5ead2; font-size: 12px; line-height: 1.55; text-align: left; }
+
+@media (max-width: 699px) {
+  .homeContent .map { min-height: 278px; }
+}

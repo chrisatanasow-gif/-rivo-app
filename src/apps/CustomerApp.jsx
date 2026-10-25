@@ -15,7 +15,7 @@ import useCustomerProfile from "../lib/useCustomerProfile.js";
 import useActiveRide from "../lib/useActiveRide.js";
 import { cleanActiveRide, demoEta, demoTripProgress, DEMO_MATCH_MS, DEMO_ETA_TICK_MS, DEMO_ETA } from "../lib/activeRide.js";
 import useDailyOffers from "../lib/useDailyOffers.js";
-import DailyOffers, { AppliedOffer, OfferBanner } from "../components/DailyOffers.jsx";
+import DailyOffers, { AppliedOffer } from "../components/DailyOffers.jsx";
 import { applyDailyOffer } from "../../shared/daily-offers.js";
 import { cleanCustomerLocation, formatRideDate } from "../lib/customerProfile.js";
 import "./CustomerApp.css";
@@ -102,7 +102,6 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
   const [tripDate, setTripDate] = useState("");
   const savedPlaces = placeSlots.map(slot => ({ ...slot, location: customer.places[slot.id] }));
   const editingSlot = placeSlots.find(slot => slot.id === editingPlace);
-  const recentDestinations = customer.rides.map(ride => ride.destination).filter((location, index, values) => values.findIndex(other => other.lat === location.lat && other.lng === location.lng) === index).slice(0, 3);
   const avatar = customer.name ? customer.name[0].toLocaleUpperCase("bg") : <UserRound size={20} aria-hidden="true"/>;
   const selected = vehicles.rivo;
   const currentRoute = route?.key === routeKey(pickup, destination) ? route : null;
@@ -507,19 +506,15 @@ export default function CustomerApp({ tariff, openDriver, openAdmin, toast }) {
     <>
       <Header logo right={<div className="customerHeaderActions"><button className="iconBtn offerBell" aria-label="Известия и оферти" onClick={openOffers}><Bell size={20} aria-hidden="true"/>{offers.settings.inApp && !offerUsed && offers.settings.readId !== offers.offer.id && <i aria-hidden="true"/>}</button><button className="iconBtn profileBtn" aria-label="Отвори профила" onClick={() => go("profile")}>{avatar}</button></div>} />
         <main className="content customerContent homeContent">
-        <div className="homeIntro"><h1>{customer.name ? `Здравей, ${customer.name}` : "Къде ще пътуваме?"}</h1></div>
-        <a className="card switchCard" href="/account"><span className="switchIcon">R</span><span><b>Влез в RIVO с имейл</b><small>Твоят профил и курсове</small></span><ChevronRight className="cardChevron yellow" size={19} strokeWidth={1.8}/></a>
-        <a className="card switchCard" href="/ride"><span className="switchIcon">R</span><span><b>Тествай обща заявка</b><small>Свързан клиентски режим · с покана</small></span><ChevronRight className="cardChevron yellow" size={19} strokeWidth={1.8}/></a>
+        <div className="homeIntro"><span className="eyebrow">RIVO · ПЪТУВАНЕ</span><h1>{customer.name ? `Здравей, ${customer.name}` : "Къде ще пътуваме?"}</h1><p className="muted">Избери дестинация и ще подготвим курса ти.</p></div>
         {storageNotice}
         {recoveryNotice}
         <CustomerMap pickup={pickup} destination={destination} route={route} status={pickupEditedRef.current ? "manual" : locationStatus} addressStatus={addressStatus} recenterSignal={recenterSignal} onRecenter={() => setRecenterSignal(value => value + 1)} onDestinationSelect={selectMapDestination}/>
         <button className="destinationCard" onClick={() => { setActiveAddress("destination"); go("destination"); }}>
-          <span className="destinationIcon"><Navigation2 size={18} strokeWidth={1.8} aria-hidden="true"/></span><span><small>Къде отиваш?</small><b>{locationLabel(destination)}</b><small>Натисни, за да промениш маршрута</small></span><ChevronRight className="cardChevron" size={20} strokeWidth={1.8}/>
+          <span className="destinationIcon"><Navigation2 size={18} strokeWidth={1.8} aria-hidden="true"/></span><span><small>Къде отиваш?</small><b>{locationLabel(destination)}</b><small>Натисни, за да избереш маршрут</small></span><ChevronRight className="cardChevron" size={20} strokeWidth={1.8}/>
         </button>
-        {offers.settings.inApp && !offerUsed && offers.settings.dismissedId !== offers.offer.id && <OfferBanner onOpen={openOffers} onDismiss={() => offers.update({ dismissedId: offers.offer.id })}/>}
-        <div className="savedPlaces">{savedPlaces.map(({ id, name, location, icon }) => <button key={id} aria-label={name} onClick={() => location ? choosePlace(location) : editSavedPlace(id)}><span><PlaceIcon icon={icon}/></span><div><b>{name}</b><small>{location?.label || "Добави адрес"}</small></div></button>)}</div>
-        {recentDestinations.length > 0 && <div className="recentHome"><div className="eyebrow">ПОСЛЕДНИ ДЕСТИНАЦИИ</div>{recentDestinations.map(location => <button key={`${location.lat}-${location.lng}`} onClick={() => choosePlace(location)}><History size={16} strokeWidth={1.8}/><span><b>{location.label}</b><small>{location.detail}</small></span><ChevronRight className="cardChevron" size={18} strokeWidth={1.8}/></button>)}</div>}
-        <div className="recentHome"><div className="eyebrow">ПОПУЛЯРНИ МЕСТА</div>{popularLocations.slice(0, 2).map(location => <button key={location.label} onClick={() => choosePlace(location)}><MapPin size={16} strokeWidth={1.8}/><span><b>{location.label}</b><small>{location.detail}</small></span><ChevronRight className="cardChevron" size={18} strokeWidth={1.8}/></button>)}</div>
+        <div className="homeSaved"><span className="eyebrow">БЪРЗ ИЗБОР</span><div className="savedPlaces">{savedPlaces.map(({ id, name, location, icon }) => <button key={id} aria-label={name} onClick={() => location ? choosePlace(location) : editSavedPlace(id)}><span><PlaceIcon icon={icon}/></span><div><b>{name}</b><small>{location?.label || "Добави адрес"}</small></div></button>)}</div></div>
+        <nav className="homeQuietLinks" aria-label="Допълнителни RIVO опции"><a href="/account">Влез в RIVO с имейл</a><span aria-hidden="true">·</span><a href="/ride">Тествай обща заявка</a></nav>
       </main>
     </>
   );
