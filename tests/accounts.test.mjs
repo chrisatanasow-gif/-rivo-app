@@ -207,6 +207,34 @@ test("an approved driver cannot accept a customer request from the same account"
   assert.equal((await rideReq("driver", "transition", { rideId: id, command: "accept" }, driver)).status, 409);
 });
 
+test("customer availability is a server snapshot of approved, online, idle drivers other than the customer", async () => {
+  const customer = await named("customer@example.invalid");
+  const owner = await named("reviewer@example.invalid");
+  const snapshot = async () => (await rideReq("customer", "state", undefined, customer)).data.availability;
+  assert.equal((await snapshot()).status, "none");
+
+  // An approved and online driver on the passenger's own account is never offered.
+  await review(owner, await apply(customer));
+  await online(customer);
+  assert.equal((await snapshot()).status, "none");
+
+  const driver = await named("driver@example.invalid");
+  await review(owner, await apply(driver));
+  assert.equal((await snapshot()).status, "none");
+  await online(driver);
+  assert.equal((await snapshot()).status, "available");
+
+  await query("UPDATE rivo_driver_presence SET expires_at = now() - interval '1 second' WHERE participant_id = (SELECT id FROM rivo_member_sessions WHERE account_id = (SELECT id FROM rivo_accounts WHERE email = 'driver@example.invalid') AND role = 'driver')", []);
+  assert.equal((await snapshot()).status, "none");
+  await online(driver);
+  assert.equal((await snapshot()).status, "available");
+
+  const otherCustomer = await named("other@example.invalid");
+  const busyRide = (await createRide(otherCustomer)).data.ride.id;
+  assert.equal((await rideReq("driver", "transition", { rideId: busyRide, command: "accept" }, driver)).status, 200);
+  assert.equal((await snapshot()).status, "none");
+});
+
 test("provider sign-out revokes device bindings and work mode before returning success", async () => {
   const driver = await named("driver@example.invalid"), owner = await named("reviewer@example.invalid");
   await review(owner, await apply(driver)); await online(driver);

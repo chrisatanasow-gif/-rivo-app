@@ -1,7 +1,7 @@
 // Local test harness only. Deployments always use api/pilot.js and Neon Postgres.
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
-import { resolve, extname } from "node:path";
+import { resolve, extname, relative, isAbsolute } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { createPilotHandler } from "../server/pilot-handler.js";
 import { createNotificationsHandler } from "../server/notifications-handler.js";
@@ -45,7 +45,8 @@ const server = createServer(async (req, res) => {
   if (url.pathname.startsWith("/api/auth/")) return auth(req, res);
   if (url.pathname === "/api/notifications") return notifications(req, res);
   const path = resolve(root, `.${decodeURIComponent(url.pathname)}`);
-  if (path !== root && !path.startsWith(`${root}/`)) { res.writeHead(403); res.end(); return; }
+  const pathFromRoot = relative(root, path);
+  if (pathFromRoot.startsWith("..") || isAbsolute(pathFromRoot)) { res.writeHead(403); res.end(); return; }
   try {
     let data;
     let file = path;

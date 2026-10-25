@@ -22,6 +22,15 @@ async function create(context) {
   const {quote}=await post(context,rideApi("customer","quote"),body);
   return (await post(context,rideApi("customer","create"),{...body,quoteToken:quote.token})).ride;
 }
+async function createWithDetails(context, body={pickup:{label:"Център, Перник",lat:42.6052,lng:23.0379},destination:{label:"Изток, Перник",lat:42.6048,lng:23.0422},passengers:1,idempotencyKey:crypto.randomUUID()}) {
+  const {quote}=await post(context,rideApi("customer","quote"),body);
+  return {body,quoteToken:quote.token,ride:(await post(context,rideApi("customer","create"),{...body,quoteToken:quote.token})).ride};
+}
+async function online(context) {
+  const state=await context.request.get(rideApi("driver","state"));
+  const {presence}=await state.json(); expect(state.ok()).toBe(true);
+  return post(context,rideApi("driver","presence"),{command:"online",revision:presence.revision,leaseId:crypto.randomUUID()});
+}
 async function mockPush(context) {
   await context.addInitScript(()=>{
     const key=new Uint8Array(65).fill(1);key[0]=4;
@@ -93,6 +102,42 @@ test("member availability, notification consent, sound and full course survive o
     await expect(page.getByLabel("Имейл",{exact:true})).toBeVisible();
     // Passenger's consent stays independent from the driver's browser/session.
     expect((await customer.request.get(rideApi("customer","state"))).ok()).toBe(true);
+  } finally {await Promise.all([customer.close(),drv.close(),owner.close()]);}
+});
+
+test("no free driver is separate from waiting and a confirmed retry keeps the route but gets a fresh quote",async({browser})=>{
+  const customer=await browser.newContext({viewport:{width:320,height:568}}),drv=await browser.newContext(),owner=await browser.newContext();
+  try {
+    await account(customer,unique("retry-customer"),"Пътник Повторен опит");
+    await account(owner,"alerts-reviewer@example.invalid","Екип Повторен опит");
+    const first=await createWithDetails(customer,{pickup:{label:"GPS взимане",lat:42.601234,lng:23.031234},destination:{label:"GPS оставяне",lat:42.611234,lng:23.051234},passengers:3,idempotencyKey:crypto.randomUUID()});
+    await post(customer,rideApi("customer","transition"),{rideId:first.ride.id,command:"cancel"});
+
+    const page=await customer.newPage();
+    await page.goto("/account/ride");
+    await expect(page.getByRole("heading",{name:"Курсът е отказан",exact:true})).toBeVisible();
+    await page.getByRole("button",{name:"ОПИТАЙ ОТНОВО",exact:true}).click();
+    await expect(page.getByRole("heading",{name:"Детайли за курса",exact:true})).toBeVisible();
+    await expect(page.getByText("В момента няма свободен шофьор",{exact:true})).toBeVisible();
+    await expect(page.getByText(/Запазихме маршрута и пътниците/)).toBeVisible();
+    await expect(page.getByTestId("fare-total")).toBeVisible();
+    const footer=await page.getByRole("button",{name:"ПРЕГЛЕДАЙ КУРСА",exact:true}).boundingBox();
+    expect(footer.y+footer.height).toBeLessThanOrEqual(568);
+    await expect(page.getByRole("button",{name:"ПРЕГЛЕДАЙ КУРСА",exact:true})).toBeDisabled();
+
+    await driver(drv,owner); await online(drv);
+    await page.getByRole("button",{name:"ПРОВЕРИ ОТНОВО",exact:true}).click();
+    await expect(page.getByText(/Има свободен шофьор в момента/)).toBeVisible();
+    await page.getByRole("button",{name:"ПРЕГЛЕДАЙ КУРСА",exact:true}).click();
+    await expect(page.getByRole("heading",{name:"Потвърди заявката",exact:true})).toBeVisible();
+    const request=page.waitForRequest(item=>item.method()==="POST"&&item.url().includes("action=create"));
+    await page.getByRole("button",{name:"ИЗПРАТИ ЗАЯВКА",exact:true}).click();
+    const second=(await request).postDataJSON();
+    expect(second.pickup).toEqual(first.body.pickup); expect(second.destination).toEqual(first.body.destination); expect(second.passengers).toBe(3);
+    expect(second.quoteToken).not.toBe(first.quoteToken); expect(second.idempotencyKey).not.toBe(first.body.idempotencyKey);
+    await expect(page.getByRole("heading",{name:"Заявката е изпратена",exact:true})).toBeVisible();
+    const state=await (await customer.request.get(rideApi("customer","state"))).json();
+    await post(customer,rideApi("customer","transition"),{rideId:state.activeRide.id,command:"cancel"});
   } finally {await Promise.all([customer.close(),drv.close(),owner.close()]);}
 });
 

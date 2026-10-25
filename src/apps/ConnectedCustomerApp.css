@@ -27,3 +27,10 @@
 .pickupLocationHint { margin: 0; color: #aeb2ba; font-size: 11px; line-height: 1.5; }
 .pickupLocationHint.error { color: #ffd49e; }
 .pickupLocationHint.ready { color: #b5e6c4; }
+.availabilityNotice { display: grid; gap: 9px; border-color: #6b5b19; background: #201c0b; }
+.availabilityNotice h2 { margin: 0; font-size: 17px; line-height: 1.2; color: #fff; }
+.availabilityNotice p, .availabilityReady, .retryRouteNotice { margin: 0; color: #d4c9a5; font-size: 12px; line-height: 1.5; }
+.availabilityNotice button { min-height: 44px; border: 1px solid #6b5b19; border-radius: 12px; background: var(--panel); color: #ffdb16; font: inherit; font-size: 12px; font-weight: 850; }
+.availabilityNotice button:disabled { opacity: .5; }
+.availabilityReady { color: #b5e6c4; }
+.retryRouteNotice { padding: 10px 12px; border-left: 3px solid #ffdb16; background: #201c0b; border-radius: 0 10px 10px 0; }

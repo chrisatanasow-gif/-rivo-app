@@ -110,6 +110,23 @@ export function createPilotHandler({ query, accessCode, resolveParticipant, ride
 
   const expireWaiting = () => query("UPDATE rivo_pilot_rides SET status = 'expired', revision = revision + 1, updated_at = now() WHERE status = 'waiting' AND expires_at <= now()", []);
   const getRide = async id => (await query(`${SELECT_RIDES} WHERE r.id = $1`, [id]))[0];
+  const availability = async session => {
+    // This is intentionally a yes/no snapshot. A driver can still go offline or
+    // accept another ride before this passenger submits a request.
+    if (session.role !== "customer" || !resolveParticipant) return null;
+    const rows = await query(`SELECT 1
+      FROM rivo_driver_presence p
+      JOIN rivo_member_sessions d ON d.id = p.participant_id
+      JOIN rivo_driver_applications a ON a.account_id = d.account_id
+      WHERE d.role = 'driver' AND d.account_id <> $1
+        AND p.online AND p.expires_at > now()
+        AND a.status = 'approved'
+        AND a.permit_valid_until >= (now() AT TIME ZONE 'Europe/Sofia')::date
+        AND NOT EXISTS (SELECT 1 FROM rivo_member_rides r
+          WHERE r.driver_id = d.id AND r.status IN ('accepted', 'arrived', 'in_progress'))
+      LIMIT 1`, [session.account_id]);
+    return { status: rows[0] ? "available" : "none", checkedAt: new Date().toISOString() };
+  };
 
   return async function handle(req, res) {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -202,7 +219,9 @@ export function createPilotHandler({ query, accessCode, resolveParticipant, ride
         const active = mine.find(row => ACTIVE.includes(row.status));
         const available = session.role === "driver" && !active && (!resolveParticipant || session.can_accept) && (!rideAlerts || presence?.online)
           ? await query(`${SELECT_RIDES} WHERE r.status = 'waiting' AND r.expires_at > now() AND c.account_id IS ${resolveParticipant ? "NOT " : ""}NULL${resolveParticipant ? " AND c.account_id <> $1" : ""} ORDER BY r.created_at LIMIT 20`, resolveParticipant ? [session.account_id] : []) : [];
-        return send(200, { participant: participant(session), tariff: DEFAULT_TARIFF, activeRide: active ? ride(active) : null, rides: mine.map(ride), requests: available.map(ride), ...(rideAlerts ? { presence, serverTime: new Date().toISOString() } : {}) });
+        return send(200, { participant: participant(session), tariff: DEFAULT_TARIFF, activeRide: active ? ride(active) : null, rides: mine.map(ride), requests: available.map(ride),
+          ...(session.role === "customer" && !active ? { availability: await availability(session) } : {}),
+          ...(rideAlerts ? { presence, serverTime: new Date().toISOString() } : {}) });
       }
 
       if (action === "create" && req.method === "POST") {

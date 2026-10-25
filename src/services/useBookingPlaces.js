@@ -64,6 +64,12 @@ export default function useBookingPlaces({ requirePickup = false } = {}) {
     const place = field === "pickup" ? pickup : destination;
     if (!isValidLocation(place)) suggest(place.label);
   }
+  function restore(route) {
+    invalidate();
+    setPickup(route.pickup);
+    setDestination(route.destination);
+    setActive("destination");
+  }
   async function search(event, field) {
     event.preventDefault();
     const label = (field === "pickup" ? pickup : destination).label;
@@ -124,5 +130,5 @@ export default function useBookingPlaces({ requirePickup = false } = {}) {
       setOption(value => (value + (event.key === "ArrowDown" ? 1 : -1) + results.length) % results.length);
     } else if (event.key === "Enter" && option >= 0) { event.preventDefault(); choose(field, results[option]); }
   }
-  return { pickup, destination, active, results, status, option, resolving, gps, locatePickup, cancelLookup: invalidate, choose, edit, focus, search, mapSelect, keyDown };
+  return { pickup, destination, active, results, status, option, resolving, gps, locatePickup, cancelLookup: invalidate, choose, edit, focus, restore, search, mapSelect, keyDown };
 }
