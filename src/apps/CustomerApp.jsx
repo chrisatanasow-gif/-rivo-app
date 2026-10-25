@@ -514,6 +514,7 @@ export default function CustomerApp({ tariff, openDriver, openDriverRegistration
           <span className="destinationIcon"><Navigation2 size={18} strokeWidth={1.8} aria-hidden="true"/></span><span><small>Къде отиваш?</small><b>{locationLabel(destination)}</b><small>Натисни, за да избереш маршрут</small></span><ChevronRight className="cardChevron" size={20} strokeWidth={1.8}/>
         </button>
         <div className="homeSaved"><span className="eyebrow">БЪРЗ ИЗБОР</span><div className="savedPlaces">{savedPlaces.map(({ id, name, location, icon }) => <button key={id} aria-label={name} onClick={() => location ? choosePlace(location) : editSavedPlace(id)}><span><PlaceIcon icon={icon}/></span><div><b>{name}</b><small>{location?.label || "Добави адрес"}</small></div></button>)}</div></div>
+        <a className="driverRegistrationEntry" href="/account/driver-application"><span><small>Караш такси?</small><b>Регистрация за шофьор</b></span><ChevronRight size={18} strokeWidth={1.9} aria-hidden="true"/></a>
         <nav className="homeQuietLinks" aria-label="Допълнителни RIVO опции"><a href="/account">Влез в RIVO с имейл</a><span aria-hidden="true">·</span><a href="/ride">Тествай обща заявка</a><span aria-hidden="true">·</span><button type="button" onClick={openDriverRegistration}>Демо за шофьор</button></nav>
       </main>
     </>

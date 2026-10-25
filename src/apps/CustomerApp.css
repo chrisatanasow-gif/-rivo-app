@@ -8,6 +8,12 @@
 .homeQuietLinks { display: flex; justify-content: center; align-items: center; gap: 8px; margin: 3px 0 8px; color: var(--muted); font-size: 11px; }
 .homeQuietLinks :is(a, button) { color: inherit; padding: 8px 2px; font: inherit; background: transparent; text-decoration: none; }
 .homeQuietLinks :is(a, button):hover { color: var(--yellow); }
+.driverRegistrationEntry { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 13px; border: 1px solid color-mix(in srgb, var(--line) 82%, var(--yellow)); border-radius: 14px; color: #fff; background: color-mix(in srgb, var(--panel2) 84%, transparent); text-decoration: none; }
+.driverRegistrationEntry > span { display: grid; gap: 2px; min-width: 0; }
+.driverRegistrationEntry small { color: var(--muted); font-size: 11px; }
+.driverRegistrationEntry b { font-size: 13px; }
+.driverRegistrationEntry svg { flex: none; color: var(--yellow); }
+.driverRegistrationEntry:hover { border-color: var(--yellow); background: var(--panel2); }
 .homeContent .savedPlaces button > div { flex: 1; min-width: 0; }
 .homeContent .savedPlaces button small { margin-top: 4px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .profileBtn { display: grid; place-items: center; }

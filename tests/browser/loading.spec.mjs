@@ -109,6 +109,7 @@ test("demo driver and control load only when selected and returning keeps the pr
 test("driver registration demo stays local and opens the driver demo", async ({ page }) => {
   await fixtures(page);
   await page.goto("/");
+  await expect(page.getByRole("link", { name: "Караш такси? Регистрация за шофьор" })).toHaveAttribute("href", "/account/driver-application");
   await page.getByRole("button", { name: "Демо за шофьор", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Карай с RIVO." })).toBeVisible();
   await page.getByLabel("Име за демото").fill("Мая");
