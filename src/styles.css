@@ -11,6 +11,7 @@ html,body,#root{margin:0;min-height:100%;background:#0d0f13}
 body{background:radial-gradient(circle at 50% -18%,rgba(255,220,46,.075),transparent 33%),#0d0f13}
 button,input{font:inherit}
 button{border:0;cursor:pointer}
+:where(a,button,input,select,textarea):focus-visible{outline:2px solid var(--yellow);outline-offset:3px}
 .shell{min-height:100svh;display:grid;place-items:center;background:radial-gradient(circle at 50% 15%,rgba(255,220,46,.055),transparent 38%)}
 .app{position:relative;width:min(100vw,430px);height:100svh;overflow:hidden;background:radial-gradient(circle at 100% -6%,rgba(255,220,46,.07),transparent 31%),linear-gradient(160deg,#10131a 0%,var(--bg) 43%)}
 .header{position:relative;z-index:4;display:grid;grid-template-columns:50px 1fr 50px;align-items:center;min-height:72px;padding:calc(env(safe-area-inset-top) + 10px) 17px 8px;gap:8px;background:linear-gradient(180deg,rgba(13,15,19,.92),rgba(13,15,19,.67),transparent)}
