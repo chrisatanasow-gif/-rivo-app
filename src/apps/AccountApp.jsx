@@ -26,8 +26,9 @@ function Login({ onSuccess, run, busy, driver = false }) {
     run(async () => { if (sentTo) { await verifyCode(sentTo, otp); await onSuccess(); } else await send(); }).finally(() => { submitting.current = false; });
   }}>
     <span className="accountSymbol"><Mail size={28}/></span>
-    <div><span className="eyebrow">{driver ? "КАРАЙ С RIVO" : "ТВОЯТ ПРОФИЛ В RIVO"}</span><h1>{sentTo ? "Провери имейла си." : driver ? "Зад волана.\nС RIVO." : "Влизаш с имейл.\nПътуваш с RIVO."}</h1>
-      <p className="muted">{sentTo ? <>Изпратихме еднократен код на <strong>{sentTo}</strong>. Провери и папката „Спам“.</> : "Ще получиш код от 6 цифри. При първо влизане създаваме твоя профил."}</p></div>
+    <div className="accountLoginIntro"><span className="eyebrow">{driver ? "РЕГИСТРАЦИЯ ЗА ШОФЬОР" : "ТВОЯТ ПРОФИЛ В RIVO"}</span><h1>{sentTo ? "Провери имейла си." : driver ? "Карай с RIVO.\nЗапочни оттук." : "Влизаш с имейл.\nПътуваш с RIVO."}</h1>
+      <p className="muted">{sentTo ? <>Изпратихме еднократен код на <strong>{sentTo}</strong>. Провери и папката „Спам“.</> : driver ? "Влез с имейл и продължи към кандидатурата. Попълването отнема около 3 минути." : "Ще получиш код от 6 цифри. При първо влизане създаваме твоя профил."}</p></div>
+    {driver && <ol className="driverLoginSteps" aria-label="Стъпки за регистрация"><li className="current"><span>1</span><b>Имейл</b></li><li><span>2</span><b>Данни</b></li><li><span>3</span><b>Преглед</b></li></ol>}
     {sentTo ? <>
       <label className="pilotField">Код от имейла<input autoFocus type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={otp} disabled={busy} onChange={e => setOtp(e.target.value.replace(/\D/g, ""))} placeholder="000000" className="accountOtp"/></label>
       <Button type="submit" disabled={busy || otp.length !== 6}>{busy ? "ПРОВЕРЯВАМЕ…" : "ВЛЕЗ В RIVO"}</Button>
@@ -43,10 +44,17 @@ function Login({ onSuccess, run, busy, driver = false }) {
 
 function DriverApplication({ app, run, busy, refresh, onSaved }) {
   const [editing, setEditing] = useState(!app);
-  const fields = [["legalName", "Име по документи", 80], ["phone", "Телефон за връзка", 20], ["vehicleModel", "Марка и модел", 80], ["vehiclePlate", "Регистрационен номер", 20], ["certificateNumber", "Номер на удостоверение за водач", 80], ["permitNumber", "Номер на разрешение за автомобила", 80]];
-  return <section className="accountSection">
-    <div className="accountHeading"><CarFront size={23}/><h1>Карай с RIVO</h1></div>
-    {app && <Card className="accountStatus"><b>{LABELS[app.status]}</b><p>{app.status === "approved" && !VALID(app) ? "Разрешението е изтекло. Обнови кандидатурата си за нов преглед." : app.status === "pending" ? "Екипът на RIVO ще провери данните и документите ти. Приемането на заявки се отключва след одобрение." : app.status === "approved" ? "Можеш да приемаш заявки за тестови курсове." : "Прегледай бележката и при нужда изпрати обновена кандидатура."}</p>{app.note && <p><strong>Бележка от RIVO:</strong> {app.note}</p>}
+  const fields = [
+    ["legalName", "Име по документи", 80, "Иван Петров", "name"], ["phone", "Телефон за връзка", 20, "+359 88 123 4567", "tel"],
+    ["vehicleModel", "Марка и модел", 80, "напр. Toyota Corolla", "off"], ["vehiclePlate", "Регистрационен номер", 20, "напр. PK 1234 AB", "off"],
+    ["certificateNumber", "Номер на удостоверение за водач", 80, "напр. УВ-123456", "off"], ["permitNumber", "Номер на разрешение за автомобила", 80, "напр. РЗ-123456", "off"]
+  ];
+  const applicationMessage = app?.status === "approved" && !VALID(app) ? "Разрешението е изтекло. Обнови кандидатурата си за нов преглед." : app?.status === "pending" ? "Екипът на RIVO ще провери данните и документите ти. Приемането на заявки се отключва след одобрение." : app?.status === "approved" ? "Можеш да приемаш заявки за тестови курсове." : "Прегледай бележката и при нужда изпрати обновена кандидатура.";
+  const nextStep = app?.status === "pending" ? "Ще получиш решение след проверка на данните, разрешението и автомобила." : app?.status === "approved" && VALID(app) ? "Вече можеш да отвориш шофьорския режим и да приемаш тестови заявки." : "Прегледай данните и изпрати обновена кандидатура, когато си готов.";
+  const field = ([key, label, max, placeholder, autoComplete]) => <label key={key} className="pilotField">{label}<input name={key} required minLength={2} maxLength={max} type={key === "phone" ? "tel" : "text"} autoComplete={autoComplete} defaultValue={app?.[key] || ""} disabled={busy} placeholder={placeholder}/></label>;
+  return <section className="accountSection driverApplication">
+    <div className="driverApplicationHero"><span className="eyebrow">{app ? "КАНДИДАТУРА ЗА ШОФЬОР" : "РЕГИСТРАЦИЯ ЗА ШОФЬОР"}</span><div className="driverApplicationTitle"><span className="driverApplicationIcon"><CarFront size={24}/></span><div><h1>{app ? "Кандидатурата ти" : "Карай с RIVO."}</h1><p className="muted">{app ? "Виж статуса или обнови данните си при нужда." : "За лицензирани таксиметрови шофьори със собствен автомобил в Перник."}</p></div></div>{!app && <ol className="driverApplicationSteps" aria-label="Стъпки за кандидатстване"><li className="current"><span>1</span><b>Данни</b></li><li><span>2</span><b>Проверка</b></li><li><span>3</span><b>Заявки</b></li></ol>}</div>
+    {app && <Card className="accountStatus driverStatus"><div className="driverStatusTop"><div><span className="eyebrow">ТЕКУЩ СТАТУС</span><b>{LABELS[app.status]}</b></div><span className={`driverStatusBadge ${app.status}`}>{app.status === "pending" ? "В ПРОЦЕС" : app.status === "approved" ? "ГОТОВО" : "НУЖНО ДЕЙСТВИЕ"}</span></div><p>{applicationMessage}</p>{app.note && <p className="driverStatusNote"><strong>Бележка от RIVO:</strong> {app.note}</p>}<div className="driverNextStep"><CheckCircle2 size={18}/><div><b>Следваща стъпка</b><span>{nextStep}</span></div></div>
       <button type="button" className="accountTextButton" disabled={busy} onClick={() => run(refresh)}><RefreshCw size={16}/> Провери статуса</button>
       <a className="accountLink" href="/account/drive">{VALID(app) ? "КЪМ ЗАЯВКИТЕ" : "КЪМ ШОФЬОРСКИЯ РЕЖИМ"}<ArrowRight size={18}/></a>
       <button type="button" className="accountTextButton" disabled={busy} onClick={() => setEditing(!editing)}>{editing ? "Затвори редакцията" : "Промени данните"}</button>
@@ -59,12 +67,12 @@ function DriverApplication({ app, run, busy, refresh, onSaved }) {
       e.preventDefault(); const data = Object.fromEntries(new FormData(e.currentTarget));
       run(async () => { const result = await accountRequest("apply", { ...data, licensed: data.licensed === "on", sharePhone: data.sharePhone === "on" }); onSaved(result.application); setEditing(false); });
     }}>
-      <p className="muted">За действащи лицензирани таксиметрови шофьори със собствен автомобил в Перник.</p>
-      {fields.map(([key, label, max]) => <label key={key} className="pilotField">{label}<input name={key} required minLength={2} maxLength={max} type={key === "phone" ? "tel" : "text"} autoComplete={key === "phone" ? "tel" : "off"} defaultValue={app?.[key] || ""} disabled={busy}/></label>)}
-      <label className="pilotField">Разрешението е валидно до<input type="date" name="permitValidUntil" min={accountDate()} defaultValue={app?.permitValidUntil || ""} required disabled={busy}/></label>
-      <label className="accountCheck"><input type="checkbox" name="licensed" required disabled={busy}/><span>Потвърждавам, че съм действащ лицензиран таксиметров шофьор и посоченият автомобил има валидно разрешение.</span></label>
-      <label className="accountCheck"><input type="checkbox" name="sharePhone" defaultChecked={Boolean(app?.contactPhoneShared)} disabled={busy}/><span>Съгласявам се служебният ми телефон да се вижда само от пътника по приет активен курс. Мога да оттегля съгласието по всяко време.</span></label>
-      <p className="pilotNote">При промяна кандидатурата отново минава през преглед. Не въвеждай ЕГН. Документите се проверяват лично от екипа на RIVO.</p>
+      <section className="driverFormSection"><div className="driverFormSectionHead"><span>01</span><div><h2>Твоите данни</h2><p>Използваме ги, за да свържем кандидатурата с теб.</p></div></div><div className="driverFormFields">{fields.slice(0, 2).map(field)}</div></section>
+      <section className="driverFormSection"><div className="driverFormSectionHead"><span>02</span><div><h2>Автомобил</h2><p>Въведи данните на таксиметровия автомобил.</p></div></div><div className="driverFormFields">{fields.slice(2, 4).map(field)}</div></section>
+      <section className="driverFormSection"><div className="driverFormSectionHead"><span>03</span><div><h2>Документи и валидност</h2><p>Преди одобрение RIVO проверява тези данни лично.</p></div></div><div className="driverFormFields">{fields.slice(4).map(field)}<label className="pilotField">Разрешението е валидно до<input type="date" name="permitValidUntil" min={accountDate()} defaultValue={app?.permitValidUntil || ""} required disabled={busy}/></label></div></section>
+      <aside className="driverReviewNotice"><ShieldCheck size={21}/><div><b>Какво следва?</b><p>След изпращане кандидатурата е за преглед. Достъпът за приемане на заявки се отключва само след одобрение.</p></div></aside>
+      <fieldset className="driverConsent"><legend>Потвърждение</legend><label className="accountCheck"><input type="checkbox" name="licensed" required disabled={busy}/><span>Потвърждавам, че съм действащ лицензиран таксиметров шофьор и посоченият автомобил има валидно разрешение.</span></label><label className="accountCheck"><input type="checkbox" name="sharePhone" defaultChecked={Boolean(app?.contactPhoneShared)} disabled={busy}/><span>Съгласявам се служебният ми телефон да се вижда само от пътника по приет активен курс. Мога да оттегля съгласието по всяко време.</span></label></fieldset>
+      <p className="pilotNote driverPrivacyNote">Не въвеждай ЕГН. При промяна кандидатурата отново минава през преглед.</p>
       <Button type="submit" disabled={busy}>{busy ? "ИЗПРАЩАМЕ…" : "ИЗПРАТИ ЗА ПРЕГЛЕД"}</Button>
     </form>}
   </section>;

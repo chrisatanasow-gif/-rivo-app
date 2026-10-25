@@ -43,12 +43,15 @@ test("driver applies, authorized reviewer approves, driver queue opens", async (
   await login(page, "browser-driver@example.invalid", "Шофьор Имейл");
   await expect(page.getByLabel("Име по документи", { exact: true })).toHaveCount(0);
   await page.getByRole("link", { name: /Карай с RIVO/ }).click();
+  await expect(page.getByText("Твоите данни", { exact: true })).toBeVisible();
+  await expect(page.getByText("Документи и валидност", { exact: true })).toBeVisible();
   for (const [label, value] of [["Име по документи", "Шофьор Тест"], ["Телефон за връзка", "+359888123456"], ["Марка и модел", "Тестов автомобил"], ["Регистрационен номер", "PK TEST"], ["Номер на удостоверение за водач", "TEST-CERT"], ["Номер на разрешение за автомобила", "TEST-PERMIT"], ["Разрешението е валидно до", "2027-12-31"]]) await page.getByLabel(label, { exact: true }).fill(value);
-  await page.getByRole("checkbox").check();
+  await page.getByLabel(/Потвърждавам, че съм действащ лицензиран таксиметров шофьор/).check();
   await expect(page.getByLabel(/Съгласявам се служебният ми телефон/)).not.toBeChecked();
   await page.getByLabel(/Съгласявам се служебният ми телефон/).check();
   await page.getByRole("button", { name: "ИЗПРАТИ ЗА ПРЕГЛЕД" }).click();
   await expect(page.getByText("Очаква преглед", { exact: true })).toBeVisible();
+  await expect(page.getByText("Следваща стъпка", { exact: true })).toBeVisible();
   await expect(page.getByLabel(/Позволявам служебният ми телефон/)).toBeChecked();
   await page.getByRole("link", { name: "КЪМ ШОФЬОРСКИЯ РЕЖИМ" }).click();
   await expect(page.getByText("Новите заявки са заключени до валидно одобрение.")).toBeVisible();
