@@ -14,6 +14,8 @@ import RideAlerts from "../components/RideAlerts.jsx";
 import "./ConnectedCustomerApp.css";
 
 const TERMINAL = ["completed", "cancelled", "expired"];
+const ACTIVE_STAGES = { waiting: 0, accepted: 1, arrived: 2, in_progress: 3 };
+const RIDE_PROGRESS = ["Заявка", "Шофьор", "Пристигнал", "Пътуване"];
 const STAGES = {
   waiting: ["ТЪРСИМ ШОФЬОР", "Заявката е изпратена", "Изчакваме шофьор да приеме. Заявката изтича след 10 минути без приемане."],
   accepted: ["ШОФЬОРЪТ ИДВА", "Шофьорът прие", "Шофьорът потвърди заявката ти."],
@@ -34,6 +36,15 @@ function TripSummary({ ride }) {
 
 function Price({ fare, priceCents }) {
   return <><Card className="priceSummary"><span><small>ПРЕДВАРИТЕЛНА ОЦЕНКА</small><b>RIVO</b></span><strong data-testid="fare-total">{formatMoney(priceCents ?? fare.priceCents)}</strong></Card><FareBreakdown fare={fare}/></>;
+}
+
+function RideProgress({ status }) {
+  const current = ACTIVE_STAGES[status];
+  return <ol className="rideProgress" data-testid="ride-progress" data-stage={current} aria-label="Напредък на курса">
+    {RIDE_PROGRESS.map((label, index) => <li key={label} className={index < current ? "done" : index === current ? "current" : "upcoming"} aria-current={index === current ? "step" : undefined}>
+      <span className="rideProgressDot" aria-hidden="true">{index < current ? "✓" : index + 1}</span><small>{label}</small>
+    </li>)}
+  </ol>;
 }
 
 function rideDate(value) {
@@ -150,6 +161,7 @@ export default function ConnectedCustomerApp({ state, busy, error, syncError, on
     overlay={cancelOpen && canCancel && <CancelRideDialog waiting={ride.status === "waiting"} arrived={ride.status === "arrived"} busy={busy} onKeep={() => setCancelOpen(false)} onCancel={() => { setCancelOpen(false); onTransition(ride.id, "cancel"); }}/> }>
     {notices}
     <div className="statusHeader" aria-live="polite"><div><span className="eyebrow">ТВОЯТА ЗАЯВКА</span><h1>{STAGES[ride.status][1]}</h1><p className="muted">{STAGES[ride.status][2]}</p></div></div>
+    {!terminal && <RideProgress status={ride.status}/>}
     {!terminal && map}
     {ride.driver && <DriverProfile driver={ride.driver}/>}
     <TripSummary ride={ride}/><Price fare={ride.fare} priceCents={ride.priceCents}/>

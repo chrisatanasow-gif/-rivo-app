@@ -53,6 +53,7 @@ test("connected design uses the server fare and follows only the real driver's l
   await review(customer);
   await customer.getByRole("button", { name: "ИЗПРАТИ ЗАЯВКА" }).click();
   await expect(customer.getByRole("heading", { name: "Заявката е изпратена" })).toBeVisible();
+  await expect(customer.getByTestId("ride-progress")).toHaveAttribute("data-stage", "0");
   await expect(customer.getByText("2 пътници", { exact: true })).toBeVisible();
   const number = await customer.getByTestId("ride-number").innerText();
   const shortNumber = number.replace("Заявка № ", "");
@@ -60,11 +61,13 @@ test("connected design uses the server fare and follows only the real driver's l
   await expect(customer.getByTestId("ride-number")).toHaveText(number);
   await driver.locator(".pilotRequest").filter({ hasText: name }).getByRole("button", { name: "ПРИЕМИ ЗАЯВКАТА" }).click();
   await expect(customer.getByRole("heading", { name: "Шофьорът прие" })).toBeVisible();
+  await expect(customer.getByTestId("ride-progress")).toHaveAttribute("data-stage", "1");
   await expect(customer.locator(".header .pill")).toHaveText("ШОФЬОРЪТ ИДВА");
   await expect(customer.getByText("PK 5678 AA", { exact: true })).toBeVisible();
   await expect(customer.locator(".driverProfile")).not.toContainText(/4\.9|248/);
   await driver.getByRole("button", { name: "ПРИСТИГНАХ", exact: true }).click();
   await expect(customer.getByRole("heading", { name: "Шофьорът пристигна" })).toBeVisible();
+  await expect(customer.getByTestId("ride-progress")).toHaveAttribute("data-stage", "2");
   await expect(customer.locator(".header .pill")).toHaveText("ПРИСТИГНАЛ");
   await cc.setOffline(true);
   await expect(customer.getByText(/Няма връзка/)).toBeVisible();
@@ -72,6 +75,7 @@ test("connected design uses the server fare and follows only the real driver's l
   await driver.getByRole("button", { name: "СТАРТИРАЙ КУРСА" }).click();
   await cc.setOffline(false);
   await expect(customer.getByRole("heading", { name: "Пътуването започна" })).toBeVisible();
+  await expect(customer.getByTestId("ride-progress")).toHaveAttribute("data-stage", "3");
   await expect(customer.locator(".header .pill")).toHaveText("В ДВИЖЕНИЕ");
   await expect(customer.getByRole("button", { name: /ОТКАЖИ|СТАРТИРАЙ|ДЕМО:|ЗАВЪРШИ/ })).toHaveCount(0);
   await Promise.all([customer.reload(), driver.reload()]);
@@ -80,6 +84,7 @@ test("connected design uses the server fare and follows only the real driver's l
   await expect(driver.locator(".pilotRideHeading .price")).toHaveText(/2,26/);
   await driver.getByRole("button", { name: "ЗАВЪРШИ КУРСА" }).click();
   await expect(customer.getByRole("heading", { name: "Курсът е завършен" })).toBeVisible();
+  await expect(customer.getByTestId("ride-progress")).toHaveCount(0);
   await customer.getByRole("button", { name: "НОВА ЗАЯВКА" }).click();
   await customer.reload();
   await expect(customer.getByRole("heading", { name: "Къде отиваме?" })).toBeVisible();
