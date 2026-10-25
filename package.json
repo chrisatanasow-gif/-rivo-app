@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test tests/pilot-api.test.mjs",
-    "test:browser": "playwright test",
+    "test:browser": "node scripts/test-browser.mjs",
     "db:migrate:pilot": "node --env-file-if-exists=.env.local scripts/migrate-pilot.mjs",
     "test:notifications": "node --test tests/notifications.test.mjs",
     "db:migrate:notifications": "node --env-file-if-exists=.env.local scripts/migrate-notifications.mjs",

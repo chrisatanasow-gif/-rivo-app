@@ -15,7 +15,7 @@ async function fixtures(page) {
 }
 async function login(page, role, name) {
   // Separate local clients must not consume the old suite's per-address login quota.
-  if (!process.env.RIVO_E2E_BASE_URL) await page.setExtraHTTPHeaders({ "x-vercel-forwarded-for": `198.51.100.${++testClient}` });
+  if (!process.env.RIVO_E2E_BASE_URL || process.env.RIVO_LOCAL_TEST_SERVER === "1") await page.setExtraHTTPHeaders({ "x-vercel-forwarded-for": `198.51.100.${++testClient}` });
   await fixtures(page);
   await page.goto(role === "customer" ? "/ride" : "/pilot?role=driver");
   await page.getByLabel("Твоето име").fill(name);

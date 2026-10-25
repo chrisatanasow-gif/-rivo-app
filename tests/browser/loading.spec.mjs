@@ -4,7 +4,7 @@ const MAP_ENGINE = "**/assets/mapEngine-*.js";
 const CUSTOMER_SCREEN = "**/assets/ConnectedCustomerApp-*.js";
 let client = 0;
 async function fixtures(page) {
-  if (!process.env.RIVO_E2E_BASE_URL) await page.setExtraHTTPHeaders({ "x-vercel-forwarded-for": `198.51.104.${++client}` });
+  if (!process.env.RIVO_E2E_BASE_URL || process.env.RIVO_LOCAL_TEST_SERVER === "1") await page.setExtraHTTPHeaders({ "x-vercel-forwarded-for": `198.51.104.${++client}` });
   await page.route("https://tiles.basemaps.cartocdn.com/**", route => route.request().url().endsWith("tiles.json")
     ? route.fulfill({ json: { tilejson: "3.0.0", tiles: ["https://tiles.basemaps.cartocdn.com/test/{z}/{x}/{y}.pbf"], minzoom: 0, maxzoom: 14 } })
     : route.fulfill({ body: Buffer.alloc(0), contentType: "application/x-protobuf" }));
