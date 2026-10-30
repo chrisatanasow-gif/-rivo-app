@@ -47,7 +47,7 @@
 .pickupLocationHint { margin: 0; color: #aeb2ba; font-size: 11px; line-height: 1.5; }
 .pickupLocationHint.error { color: var(--warning); }
 .pickupLocationHint.ready { color: var(--success); }
-.availabilityNotice { display: grid; gap: 9px; border-color: rgba(255, 200, 111, .36); background: linear-gradient(145deg, rgba(62, 49, 23, .56), rgba(35, 30, 21, .82)); }
+.availabilityNotice { display: grid; gap: 9px; padding: 14px; border-color: rgba(255, 200, 111, .36); background: linear-gradient(145deg, rgba(62, 49, 23, .56), rgba(35, 30, 21, .82)); }
 .availabilityNotice h2 { margin: 0; font-size: 17px; line-height: 1.2; color: #fff; }
 .availabilityNotice p, .availabilityReady, .retryRouteNotice { margin: 0; color: #ded2aa; font-size: 12px; line-height: 1.55; }
 .availabilityNotice button { min-height: 44px; border: 1px solid rgba(255, 220, 46, .38); border-radius: 12px; background: rgba(20, 24, 32, .78); color: #ffdc2e; font: inherit; font-size: 12px; font-weight: 850; }
