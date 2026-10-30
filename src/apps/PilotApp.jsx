@@ -188,7 +188,7 @@ export default function PilotApp({ customerUi, driverUi, member = false }) {
       const data = await pilotRequest("state", undefined, { signal });
       if (!mounted.current || signal?.aborted || request !== version.current) return;
       if (!navigator.onLine) { setSyncError("Няма връзка. Ще обновим курса, когато се свържеш отново."); return; }
-      setState(data); setSyncError("");
+      setState({ ...data, receivedAt: Date.now() }); setSyncError("");
     } catch (problem) {
       if (!mounted.current || signal?.aborted || request !== version.current) return;
       if (problem.status === 401) { setParticipant(null); setState(null); }

@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
+import { selectDemoSofia } from "./helpers/demo-destination.mjs";
 
 const KEY = "rivoCustomerProfileV1";
-const sofiaButton = "София, Център пл. „Независимост“";
 
 async function prepare(page) {
   await page.context().grantPermissions(["geolocation"]);
@@ -66,7 +66,7 @@ for (const [width, height] of [[320, 568], [390, 844]]) {
 test("Work can be edited and removed without changing Home", async ({ page }) => {
   await prepare(page);
   await page.getByRole("button", { name: "Работа", exact: true }).click();
-  await page.getByRole("button", { name: sofiaButton, exact: true }).click();
+  await selectDemoSofia(page);
   await page.getByRole("button", { name: "ЗАПАЗИ АДРЕСА" }).click();
   await page.getByRole("button", { name: "Дом", exact: true }).click();
   await page.getByRole("combobox", { name: "Адрес за Дом", exact: true }).fill("епи");
@@ -87,7 +87,7 @@ test("Work can be edited and removed without changing Home", async ({ page }) =>
 
 test("completed rides persist before Done, feedback persists, and repeating requotes the route", async ({ page }) => {
   await prepare(page);
-  await page.getByRole("button", { name: sofiaButton, exact: true }).click();
+  await selectDemoSofia(page);
   await bookAndComplete(page);
   await expect(page.locator(".receiptRow.total strong")).toHaveText(/2,12/);
   await page.getByRole("button", { name: "2 звезди", exact: true }).click();

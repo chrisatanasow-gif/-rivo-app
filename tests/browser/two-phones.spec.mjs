@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { selectDemoSofia } from "./helpers/demo-destination.mjs";
 
 const CODE = process.env.RIVO_PILOT_CODE || "rivo-local-test-invitation";
 
@@ -132,7 +133,7 @@ test("the main design uses road distance and ignores old fixed-price storage", a
   const page = await context.newPage();
   await page.route("https://router.project-osrm.org/**", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ code: "Ok", routes: [{ distance: 35000, duration: 2400, geometry: { type: "LineString", coordinates: [[23.0379, 42.6052], [23.3219, 42.6977]] } }] }) }));
   await page.goto("/");
-  await page.getByRole("button", { name: "София, Център пл. „Независимост“", exact: true }).click();
+  await selectDemoSofia(page);
   await page.getByRole("button", { name: "ПРОДЪЛЖИ", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Детайли за курса" })).toBeVisible();
   await expect(page.locator(".rideCard")).toHaveCount(1);

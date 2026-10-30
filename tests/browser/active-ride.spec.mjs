@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { selectDemoSofia } from "./helpers/demo-destination.mjs";
 const KEY = "rivoActiveDemoRideV1";
 const TIME = new Date("2026-10-17T08:00:00Z");
 async function fixtures(page, clock = true) {
@@ -13,7 +14,7 @@ async function fixtures(page, clock = true) {
 }
 async function book(page, discounted = false) {
   if (discounted) { await page.getByRole("button", { name: "Известия и оферти", exact: true }).click(); await page.getByRole("button", { name: "ИЗПОЛЗВАЙ ОФЕРТАТА" }).click(); }
-  await page.getByRole("button", { name: "София, Център пл. „Независимост“", exact: true }).click();
+  await selectDemoSofia(page);
   await page.getByRole("button", { name: "ПРОДЪЛЖИ", exact: true }).click();
   await page.getByRole("button", { name: /ПРЕГЛЕДАЙ КУРСА/ }).click();
   await page.getByRole("button", { name: "ПОРЪЧАЙ RIVO", exact: true }).click();

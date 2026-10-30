@@ -4,9 +4,9 @@ import { reverseGeocode, searchAddresses } from "./geocodingService.js";
 import { localPlaceSuggestions, mergePlaceSuggestions, remotePlaceSuggestions, MIN_SUGGESTION_LENGTH } from "./placeSuggestions.js";
 import { requestPickupLocation } from "./pickupLocation.js";
 
-export default function useBookingPlaces({ requirePickup = false } = {}) {
-  const [pickup, setPickup] = useState(() => requirePickup ? { label: "", lat: null, lng: null } : { label: "Перник, Център", lat: 42.6052, lng: 23.0379 });
-  const [destination, setDestination] = useState({ label: "", lat: null, lng: null });
+export default function useBookingPlaces({ requirePickup = false, initialRoute } = {}) {
+  const [pickup, setPickup] = useState(() => isValidLocation(initialRoute?.pickup) ? initialRoute.pickup : requirePickup ? { label: "", lat: null, lng: null } : { label: "Перник, Център", lat: 42.6052, lng: 23.0379 });
+  const [destination, setDestination] = useState(() => isValidLocation(initialRoute?.destination) ? initialRoute.destination : { label: "", lat: null, lng: null });
   const [active, setActive] = useState(requirePickup ? "pickup" : "destination");
   const [results, setResults] = useState([]);
   const [status, setStatus] = useState("idle");

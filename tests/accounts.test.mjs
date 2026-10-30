@@ -278,3 +278,33 @@ test("provider sign-out revokes device bindings and work mode before returning s
   assert.equal((await query("SELECT online FROM rivo_driver_presence", []))[0].online, false);
   assert.equal((await rideReq("driver", "state", undefined, driver)).status, 401);
 });
+
+test("a waiting customer gets live availability without creating another request or losing an accepted ride", async () => {
+  const customer = await named("customer@example.invalid"), driver = await named("driver@example.invalid"), owner = await named("reviewer@example.invalid");
+  await review(owner, await apply(driver));
+  const created = await createRide(customer);
+  let state = (await rideReq("customer", "state", undefined, customer)).data;
+  assert.equal(state.activeRide.id, created.data.ride.id);
+  assert.equal(state.availability.status, "none");
+  await online(driver);
+  state = (await rideReq("customer", "state", undefined, customer)).data;
+  assert.equal(state.activeRide.id, created.data.ride.id); assert.equal(state.availability.status, "available");
+  assert.equal(state.rides.length, 1);
+  await rideReq("driver", "transition", { rideId: created.data.ride.id, command: "accept" }, driver);
+  state = (await rideReq("customer", "state", undefined, customer)).data;
+  assert.equal(state.activeRide.status, "accepted"); assert.equal(state.availability, undefined);
+});
+
+test("an availability lookup failure stays unknown while the owned waiting request is still returned", async () => {
+  const customer = await named("customer@example.invalid");
+  const created = await createRide(customer);
+  const partialQuery = async (sql, params) => {
+    if (sql.includes("FROM rivo_driver_presence p")) throw Object.assign(new Error("Availability fixture unavailable"), { code: "08006" });
+    return query(sql, params);
+  };
+  const handler = createPilotHandler({ query: memberQuery(partialQuery), resolveParticipant: accounts.participantFor, reportError: () => {} });
+  const response = await rideReq("customer", "state", undefined, customer, handler);
+  assert.equal(response.status, 200); assert.equal(response.data.activeRide.id, created.data.ride.id);
+  assert.equal(response.data.availability.status, "unknown");
+  assert.ok(!JSON.stringify(response.data).includes("Availability fixture unavailable"));
+});

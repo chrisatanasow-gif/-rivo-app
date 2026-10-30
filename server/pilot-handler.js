@@ -125,7 +125,8 @@ export function createPilotHandler({ query, accessCode, resolveParticipant, ride
     // This is intentionally a yes/no snapshot. A driver can still go offline or
     // accept another ride before this passenger submits a request.
     if (session.role !== "customer" || !resolveParticipant) return null;
-    const rows = await query(`SELECT 1
+    try {
+      const rows = await query(`SELECT 1
       FROM rivo_driver_presence p
       JOIN rivo_member_sessions d ON d.id = p.participant_id
       JOIN rivo_driver_applications a ON a.account_id = d.account_id
@@ -135,8 +136,13 @@ export function createPilotHandler({ query, accessCode, resolveParticipant, ride
         AND a.permit_valid_until >= (now() AT TIME ZONE 'Europe/Sofia')::date
         AND NOT EXISTS (SELECT 1 FROM rivo_member_rides r
           WHERE r.driver_id = d.id AND r.status IN ('accepted', 'arrived', 'in_progress'))
-      LIMIT 1`, [session.account_id]);
-    return { status: rows[0] ? "available" : "none", checkedAt: new Date().toISOString() };
+        LIMIT 1`, [session.account_id]);
+      return { status: rows[0] ? "available" : "none", checkedAt: new Date().toISOString() };
+    } catch (error) {
+      // An optional availability lookup must not hide the passenger's actual ride.
+      reportError(error);
+      return { status: "unknown", checkedAt: new Date().toISOString() };
+    }
   };
 
   return async function handle(req, res) {
@@ -232,7 +238,7 @@ export function createPilotHandler({ query, accessCode, resolveParticipant, ride
           ? await query(`${selectRides} WHERE r.status = 'waiting' AND r.expires_at > now() AND c.account_id IS ${resolveParticipant ? "NOT " : ""}NULL${resolveParticipant ? " AND c.account_id <> $1" : ""} ORDER BY r.created_at LIMIT 20`, resolveParticipant ? [session.account_id] : []) : [];
         const ownCustomerRide = row => ride(row, session.role === "customer");
         return send(200, { participant: participant(session), tariff: DEFAULT_TARIFF, activeRide: active ? ownCustomerRide(active) : null, rides: mine.map(ownCustomerRide), requests: available.map(row => ride(row)),
-          ...(session.role === "customer" && !active ? { availability: await availability(session) } : {}),
+          ...(session.role === "customer" && (!active || active.status === "waiting") ? { availability: await availability(session) } : {}),
           ...(rideAlerts ? { presence, serverTime: new Date().toISOString() } : {}) });
       }
 

@@ -26,10 +26,16 @@ async function preview(driver, name) { await driver.getByRole("button", { name: 
 async function accept(driver, name) { await preview(driver, name); await driver.getByRole("button", { name: "ПРИЕМИ ЗАЯВКАТА", exact: true }).click(); await expect(driver.getByRole("heading", { name: "Към клиента", exact: true })).toBeVisible(); }
 async function cancel(driver) { await driver.getByRole("button", { name: "ОТКАЖИ КУРСА", exact: true }).click(); await driver.getByRole("dialog").getByRole("button", { name: "Откажи курса", exact: true }).click(); await expect(driver.getByRole("heading", { name: "Курсът е отказан" })).toBeVisible(); }
 async function pinned(page, name) {
-  const button = page.getByRole("button", { name, exact: true }); const before = await button.boundingBox();
+  const button = page.getByRole("button", { name, exact: true });
+  await button.click({ trial: true });
+  const before = await button.boundingBox();
+  const footer = page.locator(".driverActions"); const fixed = await footer.boundingBox();
   expect(before.height).toBeGreaterThanOrEqual(44); expect(before.y + before.height).toBeLessThanOrEqual(page.viewportSize().height);
   await page.locator(".driverContent").evaluate(el => el.scrollTop = el.scrollHeight);
-  const after = await button.boundingBox(); expect(after.y).toBeCloseTo(before.y, 0);
+  await button.click({ trial: true });
+  const after = await button.boundingBox();
+  expect(after.y + after.height).toBeLessThanOrEqual(page.viewportSize().height);
+  expect((await footer.boundingBox()).y).toBeCloseTo(fixed.y, 0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 }
 

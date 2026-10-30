@@ -11,6 +11,8 @@ import useLiveDriverLocation from "../services/useLiveDriverLocation.js";
 import { isValidLocation, routeKey } from "../../shared/locations.js";
 import { formatMoney } from "../../shared/fare.js";
 import RideAlerts from "../components/RideAlerts.jsx";
+import useServerSnapshot from "../services/useServerSnapshot.js";
+import { savedRetryRide, saveRetryRide } from "../services/retryRide.js";
 import "./ConnectedCustomerApp.css";
 
 const TERMINAL = ["completed", "cancelled", "expired"];
@@ -59,25 +61,41 @@ function DriverProfile({ driver }) {
   </Card>;
 }
 
-function AvailabilityNotice({ availability, busy, onRefresh }) {
-  if (!availability) return null;
-  if (availability.status === "none") return <section className="card availabilityNotice unavailable" role="status">
-    <span className="eyebrow">НАЛИЧНОСТ</span><h2>В момента няма свободен шофьор</h2>
-    <p>Това е моментна проверка от RIVO. Не сме създали заявка и не обещаваме време за приемане.</p>
+function AvailabilityNotice({ status, waiting = false, busy, onRefresh }) {
+  if (status === "unknown") return <section className="card availabilityNotice unknown" role="status">
+    <span className="eyebrow">НАЛИЧНОСТ</span><h2>Наличността не е потвърдена</h2>
+    <p>{waiting ? "Пазим последното състояние на заявката ти. Обнови връзката, за да проверим дали има свободен шофьор." : "В момента не можем да потвърдим свободен шофьор. Маршрутът ти остава запазен на този екран."}</p>
     <button type="button" disabled={busy} onClick={onRefresh}>ПРОВЕРИ ОТНОВО</button>
   </section>;
-  return <p className="availabilityReady" role="status">Има свободен шофьор в момента. Това е моментна снимка и не гарантира приемане.</p>;
+  if (status === "none") return <section className="card availabilityNotice unavailable" role="status">
+    <span className="eyebrow">НАЛИЧНОСТ</span><h2>В момента няма свободен шофьор</h2>
+    <p>{waiting ? "Заявката ти остава активна. Можеш да изчакаш до изтичането ѝ или да я откажеш." : "Това е моментна проверка от RIVO. Не сме създали заявка и не обещаваме време за приемане."}</p>
+    <button type="button" disabled={busy} onClick={onRefresh}>ПРОВЕРИ ОТНОВО</button>
+  </section>;
+  return <p className="availabilityReady" role="status">{waiting ? "Има свободен шофьор в момента. Изчакваме да приеме заявката ти." : "Има свободен шофьор в момента. Това е моментна снимка и не гарантира приемане."}</p>;
+}
+
+function SearchTime({ ride, now }) {
+  const seconds = Number.isFinite(now) ? Math.max(0, Math.ceil((Date.parse(ride.expiresAt) - now) / 1000)) : null;
+  return <section className="searchTime" aria-label="Изчакване на шофьор">
+    {seconds > 0 ? <><span>Оставащо време за търсене</span><strong role="timer" aria-live="off" aria-label="Оставащо време за търсене">{String(Math.floor(seconds / 60)).padStart(2, "0")}:{String(seconds % 60).padStart(2, "0")}</strong></>
+      : <p role="status">Проверяваме резултата от търсенето…</p>}
+    <small>Нов опит ще бъде възможен след потвърден отказ или изтичане.</small>
+  </section>;
 }
 
 export default function ConnectedCustomerApp({ state, busy, error, syncError, onRefresh, onCreate, onTransition, onLogout }) {
   const member = Boolean(state.participant.accountId);
-  const places = useBookingPlaces({ requirePickup: member });
-  const [step, setStep] = useState(1);
+  const [initialRetry] = useState(() => savedRetryRide(state));
+  const [retryRideId, setRetryRideId] = useState(initialRetry?.id || null);
+  const places = useBookingPlaces({ requirePickup: member, initialRoute: initialRetry });
+  const [step, setStep] = useState(initialRetry ? 2 : 1);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyRideId, setHistoryRideId] = useState(null);
   const [cancelOpen, setCancelOpen] = useState(false);
-  const [retrying, setRetrying] = useState(false);
+  const [retrying, setRetrying] = useState(Boolean(initialRetry));
   const [dismissed, setDismissed] = useState(() => {
+    if (initialRetry) return initialRetry.id;
     try { return localStorage.getItem("rivoPilotDismissedRide"); } catch { return null; }
   });
   const [storageError, setStorageError] = useState(false);
@@ -87,17 +105,27 @@ export default function ConnectedCustomerApp({ state, busy, error, syncError, on
   const historyRide = historyRideId ? state.rides.find(item => item.id === historyRideId) : null;
   const terminal = Boolean(ride && TERMINAL.includes(ride.status));
   const retryable = Boolean(member && ride && ["cancelled", "expired"].includes(ride.status));
-  const noDriver = Boolean(member && state.availability?.status === "none");
+  const snapshot = useServerSnapshot(state, member && (!ride || ride.status === "waiting"));
+  const availabilityAge = snapshot.now - Date.parse(state.availability?.checkedAt);
+  const availabilityStatus = !syncError && snapshot.fresh && availabilityAge >= -5000 && availabilityAge < 15000 && ["none", "available"].includes(state.availability?.status) ? state.availability.status : "unknown";
+  const canRequest = !member || availabilityStatus === "available";
   const canCancel = ride && ["waiting", "accepted", "arrived"].includes(ride.status);
   const valid = isValidLocation(places.pickup) && isValidLocation(places.destination) && !places.resolving;
   const quote = useFareQuote(places.pickup, places.destination, !ride && valid);
-  const [passengers, setPassengers] = useState(1);
+  const [passengers, setPassengers] = useState(initialRetry?.passengers || 1);
   const pickup = ride?.pickup || places.pickup;
   const destination = ride?.destination || places.destination;
   const mapKey = routeKey(pickup, destination);
   const [mapRoute, setMapRoute] = useState(null);
   const liveDriver = useLiveDriverLocation(ride);
   const [driverFocus, setDriverFocus] = useState(0);
+
+  useEffect(() => {
+    if (member && (state.activeRide || (retryRideId && latest?.id !== retryRideId))) {
+      saveRetryRide(state.participant, null);
+      setRetryRideId(null); setRetrying(false);
+    }
+  }, [member, state.activeRide?.id, latest?.id, retryRideId, state.participant.id]);
 
   useEffect(() => {
     if (!mapKey) return undefined;
@@ -115,7 +143,9 @@ export default function ConnectedCustomerApp({ state, busy, error, syncError, on
 
   function dismiss() {
     setDismissed(ride.id); setStep(1); setHistoryOpen(false); setHistoryRideId(null); setRetrying(false); requestKey.current = null;
-    try { localStorage.setItem("rivoPilotDismissedRide", ride.id); setStorageError(false); }
+    setRetryRideId(null);
+    const saved = saveRetryRide(state.participant, null);
+    try { localStorage.setItem("rivoPilotDismissedRide", ride.id); setStorageError(!saved); }
     catch { setStorageError(true); }
   }
   function retryWithSavedRoute() {
@@ -126,14 +156,16 @@ export default function ConnectedCustomerApp({ state, busy, error, syncError, on
     quote.retry();
     requestKey.current = null;
     setRetrying(true);
+    setRetryRideId(savedRide.id);
+    const saved = saveRetryRide(state.participant, savedRide.id);
     setDismissed(savedRide.id);
     setStep(2);
     setHistoryOpen(false);
-    try { localStorage.setItem("rivoPilotDismissedRide", savedRide.id); setStorageError(false); }
+    try { localStorage.setItem("rivoPilotDismissedRide", savedRide.id); setStorageError(!saved); }
     catch { setStorageError(true); }
   }
   function create() {
-    if (busy || noDriver || !valid || !quote.quote) return;
+    if (busy || !canRequest || !valid || !quote.quote) return;
     const key = `${quote.key}:${passengers}`;
     if (requestKey.current?.key !== key) requestKey.current = { key, id: crypto.randomUUID() };
     onCreate({ pickup: places.pickup, destination: places.destination, passengers, quoteToken: quote.quote.token, idempotencyKey: requestKey.current.id });
@@ -142,7 +174,7 @@ export default function ConnectedCustomerApp({ state, busy, error, syncError, on
     {member && <RideAlerts/>}
     <div className={`pilotSync ${syncError ? "offline" : ""}`} role="status"><span>{syncError || "Свързано · заявките се обновяват"}</span><button aria-label="Обнови заявките" disabled={busy && !syncError} onClick={onRefresh}><RefreshCw size={15}/></button></div>
     {error && <div className="pilotError" role="alert">{error}</div>}
-    {storageError && <p className="profileStorageNotice" role="status">Не успяхме да запазим затварянето на курса. След презареждане може да се покаже отново.</p>}
+    {storageError && <p className="profileStorageNotice" role="status">Не успяхме да запазим избора на този браузър. След презареждане провери последната си заявка.</p>}
   </>;
   const map = <><RivoMap pickup={pickup} destination={isValidLocation(destination) ? destination : null} route={mapRoute?.key === mapKey && !mapRoute.isFallback ? mapRoute : null} driverLocation={liveDriver.location} driverFocusSignal={driverFocus} onDestinationSelect={!ride && step === 1 ? places.mapSelect : undefined}/>{ride && <div className={`connectedGps ${liveDriver.status}`}>
     <p data-testid="driver-location-status">{liveDriver.label}</p>
@@ -162,6 +194,7 @@ export default function ConnectedCustomerApp({ state, busy, error, syncError, on
     {notices}
     <div className="statusHeader" aria-live="polite"><div><span className="eyebrow">ТВОЯТА ЗАЯВКА</span><h1>{STAGES[ride.status][1]}</h1><p className="muted">{STAGES[ride.status][2]}</p></div></div>
     {!terminal && <RideProgress status={ride.status}/>}
+    {member && ride.status === "waiting" && <><SearchTime ride={ride} now={snapshot.now}/><AvailabilityNotice status={availabilityStatus} waiting busy={busy && !syncError} onRefresh={onRefresh}/></>}
     {!terminal && map}
     {ride.driver && <DriverProfile driver={ride.driver}/>}
     <TripSummary ride={ride}/><Price fare={ride.fare} priceCents={ride.priceCents}/>
@@ -183,10 +216,10 @@ export default function ConnectedCustomerApp({ state, busy, error, syncError, on
   </CustomerScreen>;
 
   return <CustomerScreen logo right={<Pill>ТЕСТ</Pill>} onBack={step > 1 && !busy ? () => setStep(value => value - 1) : undefined} className={`connectedCustomer ${step === 1 ? "customerRoute" : ""}`}
-    actions={<><p className="customerActionHint">{step === 1 ? "Провери и избери точните адреси за взимане и оставяне." : "Затворен тест · тестова цена · без плащане"}</p><Button disabled={busy || !valid || (step > 1 && (!quote.quote || noDriver))} onClick={step === 3 ? create : () => setStep(value => value + 1)}>{busy ? "ИЗПРАЩАНЕ…" : step === 1 ? "ПРОДЪЛЖИ" : step === 2 ? "ПРЕГЛЕДАЙ КУРСА" : "ИЗПРАТИ ЗАЯВКА"}</Button></>}>
+    actions={<><p className="customerActionHint">{step === 1 ? "Провери и избери точните адреси за взимане и оставяне." : "Затворен тест · тестова цена · без плащане"}</p><Button disabled={busy || !valid || (step > 1 && (!quote.quote || !canRequest))} onClick={step === 3 ? create : () => setStep(value => value + 1)}>{busy ? "ИЗПРАЩАНЕ…" : step === 1 ? "ПРОДЪЛЖИ" : step === 2 ? "ПРЕГЛЕДАЙ КУРСА" : "ИЗПРАТИ ЗАЯВКА"}</Button></>}>
     {notices}
     <div><span className="eyebrow">СТЪПКА {step} ОТ 3</span><h1>{step === 1 ? "Къде отиваме?" : step === 2 ? "Детайли за курса" : "Потвърди заявката"}</h1></div>
-    {member && <AvailabilityNotice availability={state.availability} busy={busy} onRefresh={onRefresh}/>}
+    {member && <AvailabilityNotice status={availabilityStatus} busy={busy && !syncError} onRefresh={onRefresh}/>}
     {step === 1 ? <>
       {member && <section className="pickupLocation" aria-label="Избор на място за взимане">
         <button type="button" className="pickupLocationButton" disabled={busy} onClick={places.gps.status === "loading" ? places.cancelLookup : places.locatePickup}>

@@ -54,3 +54,9 @@
 .availabilityNotice button:disabled { opacity: .5; }
 .availabilityReady { color: var(--success); }
 .retryRouteNotice { padding: 10px 12px; border-left: 3px solid #ffdc2e; background: rgba(255, 220, 46, .075); border-radius: 0 10px 10px 0; }
+.availabilityNotice.unknown { border-color: var(--line); background: var(--panel); }
+.availabilityNotice.unknown p { color: var(--muted); }
+.searchTime { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; align-items: center; border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; }
+.searchTime > span { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.searchTime strong { color: var(--yellow); font-size: 25px; font-variant-numeric: tabular-nums; }
+.searchTime small, .searchTime p { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }

@@ -109,7 +109,7 @@ test("no free driver is separate from waiting and a confirmed retry keeps the ro
   const customer=await browser.newContext({viewport:{width:320,height:568}}),drv=await browser.newContext(),owner=await browser.newContext();
   try {
     await account(customer,unique("retry-customer"),"Пътник Повторен опит");
-    await account(owner,"alerts-reviewer@example.invalid","Екип Повторен опит");
+    await account(owner,"retry-reviewer@example.invalid","Екип Повторен опит");
     const first=await createWithDetails(customer,{pickup:{label:"GPS взимане",lat:42.601234,lng:23.031234},destination:{label:"GPS оставяне",lat:42.611234,lng:23.051234},passengers:3,idempotencyKey:crypto.randomUUID()});
     await post(customer,rideApi("customer","transition"),{rideId:first.ride.id,command:"cancel"});
 
@@ -145,7 +145,7 @@ test("an opted-in assigned driver has a call link only while the shared course i
   const customer=await browser.newContext({viewport:{width:320,height:568}}),drv=await browser.newContext(),owner=await browser.newContext();
   try {
     await account(customer,unique("contact-customer"),"Пътник Контакт");
-    await account(owner,"alerts-reviewer@example.invalid","Екип Контакт");
+    await account(owner,"contact-reviewer@example.invalid","Екип Контакт");
     await driver(drv,owner,true); await online(drv);
     const ride=await create(customer);
     await post(drv,rideApi("driver","transition"),{rideId:ride.id,command:"accept"});

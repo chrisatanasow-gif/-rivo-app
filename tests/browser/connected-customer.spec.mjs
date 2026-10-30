@@ -106,7 +106,7 @@ test("a lost create response recovers the saved request and cancellation require
     const response = await route.fetch(); saved = await response.json();
     await route.fulfill({ status: 503, json: { error: "Потвърждението не се получи. Опитай отново." } });
   });
-  await page.route("**/api/pilot?action=state", route => route.fulfill({ status: 503, json: { error: "Временно прекъсване" } }));
+  await page.route("**/api/pilot?action=state", route => saved ? route.fulfill({ status: 503, json: { error: "Временно прекъсване" } }) : route.continue());
   await page.getByRole("button", { name: "ИЗПРАТИ ЗАЯВКА" }).click();
   await expect(page.getByText("Потвърждението не се получи. Опитай отново.")).toBeVisible();
   await page.unroute("**/api/pilot?action=create");

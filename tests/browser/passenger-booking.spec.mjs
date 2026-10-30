@@ -28,13 +28,17 @@ async function fixtures(page) {
 
 async function assertPinned(page, name) {
   const button = page.getByRole("button", { name });
+  await button.click({ trial: true });
   const before = await button.boundingBox();
+  const footer = page.locator(".customerActions"); const fixed = await footer.boundingBox();
   expect(before.y).toBeGreaterThan(0);
   expect(before.y + before.height).toBeLessThanOrEqual(page.viewportSize().height);
   expect(before.height).toBeGreaterThanOrEqual(44);
   await page.locator(".customerBooking .content").evaluate(element => { element.scrollTop = element.scrollHeight; });
+  await button.click({ trial: true });
   const after = await button.boundingBox();
-  expect(after.y).toBeCloseTo(before.y, 0);
+  expect(after.y + after.height).toBeLessThanOrEqual(page.viewportSize().height);
+  expect((await footer.boundingBox()).y).toBeCloseTo(fixed.y, 0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 }
 

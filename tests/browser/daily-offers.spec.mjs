@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { selectDemoSofia } from "./helpers/demo-destination.mjs";
 const KEY = "rivoDailyOffersV1";
 async function prepare(page) {
   await page.clock.setFixedTime(new Date("2026-10-17T08:00:00Z"));
@@ -11,7 +12,7 @@ async function prepare(page) {
 }
 const openOffers = page => page.getByRole("button", { name: "Известия и оферти", exact: true }).click();
 async function review(page) {
-  await page.getByRole("button", { name: "София, Център пл. „Независимост“", exact: true }).click();
+  await selectDemoSofia(page);
   await page.getByRole("button", { name: "ПРОДЪЛЖИ", exact: true }).click();
   await expect(page.getByRole("button", { name: /ПРЕГЛЕДАЙ КУРСА/ })).toBeEnabled();
 }
