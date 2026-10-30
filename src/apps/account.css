@@ -1,0 +1,95 @@
+.accountApp h1 { white-space: pre-line; font-size: clamp(30px, 8vw, 40px); line-height: 1.06; letter-spacing: -1.25px; overflow-wrap: anywhere; }
+.accountApp h2 { font-size: 23px; margin: 0; }
+.accountSymbol { display: inline-flex; align-items: center; justify-content: center; width: 62px; height: 62px; border-radius: 22px; background: linear-gradient(145deg, #ffe968, #ffd21e); color: var(--yellow-ink); box-shadow: 0 14px 30px rgba(255, 212, 31, .19); flex-shrink: 0; }
+.accountLogin strong, .accountIdentity p { overflow-wrap: anywhere; }
+.accountOtp { font-size: 30px !important; text-align: center; letter-spacing: .35em; font-variant-numeric: tabular-nums; }
+.accountTextButton { display: inline-flex; gap: 8px; align-items: center; justify-content: center; border: 0; background: transparent; color: #dce1e9; padding: 12px 5px; min-height: 44px; cursor: pointer; font: inherit; font-size: 15px; transition: color .18s ease, transform .18s ease; }
+.accountTextButton:hover:not(:disabled) { color: var(--yellow); transform: translateX(2px); }
+.accountTextButton:disabled { opacity: .5; cursor: default; }
+.accountIdentity { display: flex; gap: 15px; align-items: center; }
+.accountIdentity p { margin: 6px 0; font-size: 16px; }
+.accountLink { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px; min-height: 64px; margin-top: 16px; border-radius: 20px; background: linear-gradient(135deg, #ffe45c, #ffd21d); color: var(--yellow-ink); text-decoration: none; font-size: 16px; font-weight: 900; box-shadow: 0 15px 32px rgba(255, 212, 31, .18); transition: transform .18s ease, box-shadow .18s ease, filter .18s ease; }
+.accountLink:hover { filter: brightness(1.03); transform: translateY(-1px); box-shadow: 0 19px 38px rgba(255, 212, 31, .24); }
+.accountSection { margin: 35px 0; border-top: 1px solid rgba(95, 106, 124, .38); padding-top: 28px; }
+.accountHeading { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; }
+.accountHeading > svg { color: #ffdb16; flex-shrink: 0; }
+.accountStatus, .accountReview { display: flex; flex-direction: column; gap: 8px; padding: 22px; margin-bottom: 18px; }
+.accountStatus > b { font-size: 22px; color: #ffdb16; }
+.accountStatus p, .accountReview p { line-height: 1.55; margin: 8px 0; color: #b6becb; overflow-wrap: anywhere; }
+.accountCheck { display: flex; align-items: flex-start; gap: 12px; font-size: 14px; line-height: 1.55; color: #c8cfda; }
+.accountCheck input { width: 22px; height: 22px; flex-shrink: 0; accent-color: #ffdb16; }
+.accountApp textarea { min-height: 100px; font: inherit; color: #fff; background: rgba(16, 20, 28, .9); border: 1px solid var(--line); border-radius: 16px; padding: 14px; resize: vertical; width: 100%; }
+.accountReview dl { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 14px; }
+.accountReview dt { color: #9c9da7; }
+.accountReview dd { margin: 0; overflow-wrap: anywhere; }
+.accountSaved { color: var(--success); }
+.accountProfileCard { padding: 19px; display: grid; gap: 8px; background: linear-gradient(145deg, rgba(32, 38, 50, .98), rgba(20, 24, 33, .98)); }
+.accountProfileCard .accountHeading { margin-bottom: 4px; }
+.accountProfileCard .accountTextButton { justify-self: start; }
+.accountVerified { display: flex; gap: 9px; align-items: flex-start; color: #c2c9d4; font-size: 14px; line-height: 1.5; }
+.accountVerified svg { color: var(--success); flex-shrink: 0; margin-top: 2px; }
+.accountVerified span { overflow-wrap: anywhere; min-width: 0; }
+.accountOption { display: flex; align-items: center; gap: 14px; min-height: 82px; padding: 17px; border: 1px solid rgba(83, 94, 112, .52); border-radius: 20px; background: linear-gradient(145deg, rgba(28, 33, 44, .98), rgba(18, 22, 30, .98)); color: #fff; text-decoration: none; box-shadow: var(--shadow); transition: transform .18s ease, border-color .18s ease, background .18s ease; }
+.accountOption:hover { transform: translateY(-1px); border-color: rgba(255, 220, 46, .4); background: linear-gradient(145deg, rgba(34, 41, 54, .98), rgba(21, 25, 34, .98)); }
+.accountOption > svg { color: #ffdb16; flex-shrink: 0; }
+.accountOption > span { flex: 1; min-width: 0; display: grid; gap: 6px; }
+.accountOption b { font-size: 17px; }
+.accountOption small { color: #b2bbc9; line-height: 1.45; }
+.accountConnection { display: grid; gap: 18px; padding: 23px; background: linear-gradient(145deg, rgba(28, 33, 44, .98), rgba(18, 22, 30, .98)); }
+.accountConnection > svg { color: #ffdb16; }
+
+.accountLoginIntro { display: grid; gap: 5px; }
+.driverLoginSteps, .driverApplicationSteps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 0; margin: 2px 0 1px; list-style: none; }
+.driverLoginSteps li, .driverApplicationSteps li { display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: center; gap: 6px; min-width: 0; padding: 8px 7px; border: 1px solid rgba(84, 96, 116, .42); border-radius: 12px; color: #8d96a5; background: rgba(24, 29, 39, .66); }
+.driverLoginSteps span, .driverApplicationSteps span { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: #303846; color: #c7ced9; font-size: 10px; font-weight: 900; }
+.driverLoginSteps b, .driverApplicationSteps b { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 10px; white-space: nowrap; }
+.driverLoginSteps .current, .driverApplicationSteps .current { border-color: rgba(255, 220, 46, .48); color: #f5f7fa; background: rgba(255, 220, 46, .08); }
+.driverLoginSteps .current span, .driverApplicationSteps .current span { color: #161206; background: var(--yellow); }
+
+.accountApp .driverApplication { display: grid; gap: 16px; margin: 3px 0 23px; padding-top: 0; border-top: 0; }
+.driverApplicationHero { display: grid; gap: 11px; padding: 4px 1px 1px; }
+.driverApplicationTitle { display: flex; align-items: flex-start; gap: 12px; }
+.driverApplicationTitle > div { min-width: 0; }
+.driverApplicationTitle h1 { margin: 1px 0 0; }
+.driverApplicationTitle .muted { margin: 7px 0 0; max-width: 35ch; }
+.driverApplicationIcon { width: 42px; height: 42px; display: grid; place-items: center; flex: none; border: 1px solid rgba(255, 220, 46, .32); border-radius: 14px; color: var(--yellow); background: rgba(255, 220, 46, .09); box-shadow: 0 10px 24px rgba(0, 0, 0, .16); }
+.driverApplicationSteps { margin-top: 2px; }
+.driverApplicationForm { gap: 12px; }
+.driverFormSection { margin: 0; padding: 15px; border: 1px solid rgba(84, 96, 116, .46); border-radius: 19px; background: linear-gradient(145deg, rgba(28, 33, 44, .86), rgba(18, 22, 30, .86)); box-shadow: 0 11px 28px rgba(0, 0, 0, .12); }
+.driverFormSectionHead { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 10px; align-items: start; }
+.driverFormSectionHead > span { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 11px; color: var(--yellow-ink); background: var(--yellow); font-size: 10px; font-weight: 950; }
+.driverFormSection h2 { margin: 0; font-size: 17px; letter-spacing: -.35px; }
+.driverFormSection p { margin: 3px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.driverFormFields { display: grid; gap: 11px; margin-top: 14px; }
+.driverFormSection .pilotField { gap: 7px; }
+.driverFormSection .pilotField input::placeholder { color: #657083; opacity: 1; }
+.driverReviewNotice { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; padding: 13px; border: 1px solid rgba(255, 220, 46, .25); border-radius: 17px; color: #d9dfe8; background: linear-gradient(135deg, rgba(255, 220, 46, .085), rgba(28, 33, 44, .8)); }
+.driverReviewNotice > svg { width: 34px; height: 34px; padding: 7px; border-radius: 11px; color: var(--yellow); background: rgba(255, 220, 46, .12); }
+.driverReviewNotice b { display: block; font-size: 13px; }
+.driverReviewNotice p { margin: 3px 0 0; color: #b9c1ce; font-size: 12px; line-height: 1.48; }
+.driverConsent { display: grid; gap: 12px; min-width: 0; margin: 0; padding: 13px; border: 1px solid rgba(84, 96, 116, .46); border-radius: 17px; background: rgba(20, 24, 33, .62); }
+.driverConsent legend { padding: 0 5px; color: #dce1e9; font-size: 12px; font-weight: 850; }
+.driverConsent .accountCheck { font-size: 12px; line-height: 1.48; }
+.driverConsent .accountCheck input { width: 20px; height: 20px; }
+.driverPrivacyNote { padding: 0 3px; }
+.driverStatus { gap: 13px; }
+.driverStatusTop { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.driverStatusTop > div { display: grid; gap: 5px; }
+.driverStatusTop b { font-size: 22px; color: #ffdb16; }
+.driverStatusBadge { flex: none; padding: 6px 8px; border: 1px solid rgba(255, 220, 46, .29); border-radius: 999px; color: var(--yellow); background: rgba(255, 220, 46, .09); font-size: 9px; font-weight: 900; letter-spacing: .08em; }
+.driverStatusBadge.approved { border-color: rgba(118, 220, 166, .35); color: var(--success); background: rgba(118, 220, 166, .09); }
+.driverStatusBadge.rejected, .driverStatusBadge.suspended { border-color: rgba(255, 180, 174, .35); color: var(--danger); background: rgba(255, 180, 174, .08); }
+.driverStatusNote { padding: 10px 11px; border-left: 2px solid rgba(255, 220, 46, .58); border-radius: 0 10px 10px 0; background: rgba(255, 220, 46, .055); }
+.driverNextStep { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 9px; padding-top: 12px; border-top: 1px solid rgba(84, 96, 116, .42); }
+.driverNextStep > svg { width: 30px; height: 30px; padding: 7px; border-radius: 10px; color: var(--success); background: rgba(118, 220, 166, .11); }
+.driverNextStep div { display: grid; gap: 2px; }
+.driverNextStep b { color: #e7ebf0; font-size: 12px; }
+.driverNextStep span { color: #b6becb; font-size: 12px; line-height: 1.45; }
+.driverStatus .accountContactConsent { margin-top: 1px; padding-top: 13px; border-top: 1px solid rgba(84, 96, 116, .42); font-size: 12px; }
+
+@media (max-width: 350px) {
+  .driverLoginSteps li, .driverApplicationSteps li { grid-template-columns: 18px minmax(0, 1fr); gap: 4px; padding: 7px 5px; }
+  .driverLoginSteps span, .driverApplicationSteps span { width: 18px; height: 18px; font-size: 9px; }
+  .driverLoginSteps b, .driverApplicationSteps b { font-size: 9px; }
+  .driverFormSection { padding: 13px; }
+}

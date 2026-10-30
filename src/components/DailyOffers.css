@@ -1,0 +1,49 @@
+.customerHeaderActions { display: flex; align-items: center; gap: 6px; }
+.header:has(.customerHeaderActions) { grid-template-columns: 94px minmax(0, 1fr) 94px; }
+.customerHeaderActions .iconBtn { width: 44px; height: 44px; flex: none; }
+.offerBell { position: relative; display: grid; place-items: center; }
+.offerBell i { position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--yellow); box-shadow: 0 0 0 2px var(--panel); }
+.offerBanner { display: flex; border: 1px solid #645319; border-radius: 18px; background: #211e10; }
+.offerBanner > button:first-child { display: flex; flex: 1; min-width: 0; gap: 12px; align-items: center; text-align: left; padding: 14px; color: var(--yellow); background: transparent; }
+.offerBanner span { min-width: 0; }
+.offerBanner b { font-size: 14px; }
+.offerBanner small { margin-top: 4px; font-size: 11px; color: #c8bf99; line-height: 1.5; }
+.offerBanner svg { flex: none; }
+.offerDismiss { align-self: center; width: 44px; height: 44px; flex: none; font-size: 24px; color: #d5cda9; background: transparent; }
+.dailyOfferCard { display: grid; gap: 12px; padding: 22px 18px; background: radial-gradient(ellipse at top right, #40360c, #14140f 70%); border-color: #5a4b15; }
+.offerCardTop { display: flex; gap: 12px; align-items: center; color: var(--yellow); }
+.offerCardTop span { font-size: 10px; font-weight: 800; letter-spacing: 1.5px; }
+.offerPercent { font-size: clamp(60px, 20vw, 92px); line-height: 1.1; letter-spacing: -5px; color: var(--yellow); }
+.dailyOfferCard h2 { font-size: 21px; line-height: 1.25; }
+.dailyOfferCard p { margin: 0; font-size: 14px; color: #e5e1cc; line-height: 1.6; }
+.dailyOfferCard small { font-size: 12px; line-height: 1.5; color: #aba998; }
+.dailyOfferCard .button { margin-top: 4px; min-height: 48px; }
+.offerUsed, .pushActive { display: flex; gap: 8px; align-items: center; color: var(--yellow); font-size: 13px; font-weight: 700; line-height: 1.5; }
+.dailyOfferCard.used .offerPercent { opacity: .5; }
+.offerSettings { padding: 18px 14px; display: grid; gap: 18px; }
+.offerSettings > div:first-child { display: flex; gap: 10px; align-items: center; }
+.offerSettings h2 { font-size: 17px; }
+.offerSettings h3 { font-size: 15px; margin: 0; }
+.offerToggle { display: flex; align-items: center; gap: 12px; cursor: pointer; min-height: 60px; }
+.offerToggle > span { min-width: 0; flex: 1; }
+.offerToggle b { font-size: 14px; }
+.offerToggle small { font-size: 12px; line-height: 1.5; margin-top: 5px; }
+.offerToggle input { width: 24px; height: 24px; accent-color: var(--yellow); flex: none; margin: 10px; }
+.pushSettings { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 18px; }
+.pushSettings p, .offerNotice { margin: 0; font-size: 12px; line-height: 1.6; color: #b5b6bf; }
+.offerNotice { background: #1b1d22; border-radius: 12px; padding: 12px; }
+.offerError { font-size: 12px; line-height: 1.5; color: #ffcfb9; }
+.offerError p { color: inherit; margin: 0; }
+.offerError button { min-height: 44px; margin-top: 8px; padding: 8px 12px; background: var(--panel2); color: white; border-radius: 10px; }
+.pushSettings .button { min-height: 48px; white-space: normal; font-size: 13px; }
+.appliedOffer { display: flex; gap: 10px; align-items: center; border: 1px solid #645319; border-radius: 14px; padding: 12px; color: var(--yellow); background: #211e10; }
+.appliedOffer > span { flex: 1; min-width: 0; }
+.appliedOffer b { font-size: 12px; line-height: 1.5; }
+.appliedOffer small { font-size: 10px; line-height: 1.4; margin-top: 3px; color: #c8bf99; }
+.appliedOffer svg { flex: none; }
+.appliedOffer button { min-height: 44px; background: transparent; color: #e7dcad; font-size: 11px; }
+.fareBreakdown .fareDiscount, .fareBreakdown .fareDiscount b { color: var(--yellow); }
+.offerProfileLink { width: 100%; display: flex; align-items: center; gap: 12px; padding: 18px; color: white; text-align: left; }
+.offerProfileLink svg { color: var(--yellow); flex: none; }
+.offerProfileLink small { font-size: 12px; margin-top: 4px; }
+.offerProfileLink b { font-size: 15px; }

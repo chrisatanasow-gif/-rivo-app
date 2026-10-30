@@ -1,0 +1,334 @@
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { DEFAULT_TARIFF } from "../shared/fare.js";
+import { getRoadRoute, RouteError } from "./road-route.js";
+import { createFareQuotes, QuoteError } from "./fare-quote.js";
+import { GPS_VISIBLE_MS, GPS_SAMPLE_MAX_AGE_MS, validDriverPosition } from "../shared/driver-location.js";
+import { AccountError, sameOrigin } from "./account-http.js";
+const COOKIE = "rivo_pilot_session";
+const ACTIVE = ["waiting", "accepted", "arrived", "in_progress"];
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const hash = value => createHash("sha256").update(value).digest("hex");
+
+class PilotError extends Error {
+  constructor(status, message, code = "INVALID_REQUEST") {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
+function text(value, label, maximum = 80) {
+  if (typeof value !== "string" || value.trim().length < 2 || value.trim().length > maximum || /[\u0000-\u001f\u007f]/.test(value)) {
+    throw new PilotError(400, `Провери полето „${label}“.`);
+  }
+  return value.trim();
+}
+
+function location(value, label) {
+  if (!value || typeof value.lat !== "number" || typeof value.lng !== "number" || !Number.isFinite(value.lat) || !Number.isFinite(value.lng)
+    || Math.abs(value.lat) > 90 || Math.abs(value.lng) > 180) {
+    throw new PilotError(400, `Избери точно място за ${label}.`);
+  }
+  return { label: text(value.label, label, 160), lat: value.lat, lng: value.lng };
+}
+
+function vehicleType(value) {
+  // Keep the existing storage key and accept older clients during the transition.
+  // New requests and driver registrations all belong to the single RIVO service.
+  if (value != null && !["rivo", "city", "premium"].includes(value)) throw new PilotError(400, "Невалидна услуга.");
+  return "city";
+}
+
+function participant(row) {
+  return {
+    id: row.id, role: row.role, name: row.display_name, service: "rivo",
+    vehicleType: row.vehicle_type, vehicleModel: row.vehicle_model, vehiclePlate: row.vehicle_plate,
+    ...(row.account_id ? { accountId: row.account_id, canAccept: Boolean(row.can_accept) } : {})
+  };
+}
+
+function ride(row, includeDriverPhone = false) {
+  const tracking = ["accepted", "arrived", "in_progress"].includes(row.status);
+  const updatedAt = row.driver_location_updated_at;
+  const visible = tracking && row.driver_tracking_id && validDriverPosition(row.driver_location)
+    && Date.now() - new Date(updatedAt).getTime() < GPS_VISIBLE_MS;
+  const shareDriverPhone = includeDriverPhone && tracking && Boolean(row.driver_contact_enabled) && typeof row.driver_phone === "string";
+  return {
+    id: row.id, status: row.status, revision: row.revision, service: "rivo",
+    pickup: row.pickup, destination: row.destination, vehicleType: row.vehicle_type,
+    passengers: row.passengers, priceCents: row.price_cents, currency: "EUR", fare: row.fare_quote || null,
+    customerName: row.customer_name,
+    driver: row.driver_id ? { name: row.driver_name, vehicleModel: row.driver_model, vehiclePlate: row.driver_plate,
+      ...(shareDriverPhone ? { phone: row.driver_phone } : {}) } : null,
+    driverTracking: Boolean(tracking && row.driver_tracking_id),
+    driverLocation: visible ? { lat: row.driver_location.lat, lng: row.driver_location.lng, accuracy: row.driver_location.accuracy, updatedAt } : null,
+    createdAt: row.created_at, updatedAt: row.updated_at, expiresAt: row.expires_at
+  };
+}
+
+const SELECT_RIDES = `SELECT r.*, c.display_name AS customer_name,
+  d.display_name AS driver_name, d.vehicle_model AS driver_model, d.vehicle_plate AS driver_plate
+  FROM rivo_pilot_rides r
+  JOIN rivo_pilot_sessions c ON c.id = r.customer_id
+  LEFT JOIN rivo_pilot_sessions d ON d.id = r.driver_id`;
+
+async function readBody(req) {
+  if (req.headers["content-type"]?.split(";")[0].trim().toLowerCase() !== "application/json") {
+    throw new PilotError(415, "Заявката трябва да е във формат JSON.");
+  }
+  let body = req.body;
+  if (body === undefined) {
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of req) {
+      size += Buffer.byteLength(chunk);
+      if (size > 8192) throw new PilotError(413, "Заявката е прекалено голяма.");
+      chunks.push(Buffer.from(chunk));
+    }
+    body = Buffer.concat(chunks).toString("utf8");
+  }
+  if (Buffer.isBuffer(body)) body = body.toString("utf8");
+  if (typeof body === "string") {
+    if (Buffer.byteLength(body) > 8192) throw new PilotError(413, "Заявката е прекалено голяма.");
+    try { body = JSON.parse(body); } catch { throw new PilotError(400, "Невалидна заявка."); }
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw new PilotError(400, "Невалидна заявка.");
+  if (Buffer.byteLength(JSON.stringify(body)) > 8192) throw new PilotError(413, "Заявката е прекалено голяма.");
+  return body;
+}
+
+export function createPilotHandler({ query, accessCode, resolveParticipant, rideAlerts, secureCookies = true, resolveRoute = getRoadRoute, now, reportError = error => console.error("RIVO pilot API", error.code || error.name) }) {
+  const gateHash = hash(accessCode || "");
+  const quotes = createFareQuotes({ query, resolveRoute, now });
+  const cookie = (token, age = 86400) => `${COOKIE}=${token}; Path=/api/pilot; HttpOnly; SameSite=Strict; Max-Age=${age}${secureCookies ? "; Secure" : ""}`;
+  // Invitation-only rides have no account application data. Member rides may
+  // join it, but the phone is later serialized only for the assigned customer.
+  const selectRides = resolveParticipant ? `SELECT r.*, c.display_name AS customer_name,
+    d.display_name AS driver_name, d.vehicle_model AS driver_model, d.vehicle_plate AS driver_plate,
+    a.phone AS driver_phone, a.contact_phone_enabled AS driver_contact_enabled
+    FROM rivo_pilot_rides r
+    JOIN rivo_pilot_sessions c ON c.id = r.customer_id
+    LEFT JOIN rivo_pilot_sessions d ON d.id = r.driver_id
+    LEFT JOIN rivo_driver_applications a ON a.account_id = d.account_id` : SELECT_RIDES;
+
+  async function sessionFor(req) {
+    if (resolveParticipant) return resolveParticipant(req);
+    const token = (req.headers.cookie || "").split(";").map(part => part.trim()).find(part => part.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1);
+    if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
+    const rows = await query("SELECT * FROM rivo_pilot_sessions WHERE token_hash = $1 AND gate_hash = $2 AND expires_at > now()", [hash(token), gateHash]);
+    return rows[0] || null;
+  }
+
+  const expireWaiting = () => query("UPDATE rivo_pilot_rides SET status = 'expired', revision = revision + 1, updated_at = now() WHERE status = 'waiting' AND expires_at <= now()", []);
+  const getRide = async id => (await query(`${selectRides} WHERE r.id = $1`, [id]))[0];
+  const availability = async session => {
+    // This is intentionally a yes/no snapshot. A driver can still go offline or
+    // accept another ride before this passenger submits a request.
+    if (session.role !== "customer" || !resolveParticipant) return null;
+    try {
+      const rows = await query(`SELECT 1
+      FROM rivo_driver_presence p
+      JOIN rivo_member_sessions d ON d.id = p.participant_id
+      JOIN rivo_driver_applications a ON a.account_id = d.account_id
+      WHERE d.role = 'driver' AND d.account_id <> $1
+        AND p.online AND p.expires_at > now()
+        AND a.status = 'approved'
+        AND a.permit_valid_until >= (now() AT TIME ZONE 'Europe/Sofia')::date
+        AND NOT EXISTS (SELECT 1 FROM rivo_member_rides r
+          WHERE r.driver_id = d.id AND r.status IN ('accepted', 'arrived', 'in_progress'))
+        LIMIT 1`, [session.account_id]);
+      return { status: rows[0] ? "available" : "none", checkedAt: new Date().toISOString() };
+    } catch (error) {
+      // An optional availability lookup must not hide the passenger's actual ride.
+      reportError(error);
+      return { status: "unknown", checkedAt: new Date().toISOString() };
+    }
+  };
+
+  return async function handle(req, res) {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader("Vercel-CDN-Cache-Control", "no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    const send = (status, data) => { res.statusCode = status; res.end(JSON.stringify(data)); };
+
+    try {
+      if (!query || !resolveParticipant && (!accessCode || accessCode.length < 16)) throw new PilotError(503, "Вътрешният тест още не е активиран. Свържи се с екипа на RIVO.", "NOT_CONFIGURED");
+      if (!["GET", "POST"].includes(req.method)) {
+        res.setHeader("Allow", "GET, POST");
+        throw new PilotError(405, "Неподдържано действие.");
+      }
+      const action = new URL(req.url, "http://localhost").searchParams.get("action") || "state";
+      let body;
+      if (req.method === "POST") {
+        if (resolveParticipant) sameOrigin(req);
+        if (req.headers.origin) {
+          let origin;
+          try { origin = new URL(req.headers.origin); } catch { throw new PilotError(403, "Неразрешен източник."); }
+          if (origin.host !== req.headers.host) throw new PilotError(403, "Неразрешен източник.");
+        }
+        body = await readBody(req);
+      }
+
+      if (action === "login" && req.method === "POST") {
+        if (resolveParticipant) throw new PilotError(403, "Влез с имейл от профила.");
+        const address = req.headers["x-vercel-forwarded-for"] || req.socket?.remoteAddress || "unknown";
+        const addressHash = createHmac("sha256", accessCode).update(String(address)).digest("hex");
+        const limits = await query(`INSERT INTO rivo_pilot_login_attempts (address_hash, attempts, reset_at)
+          VALUES ($1, 1, now() + interval '15 minutes')
+          ON CONFLICT (address_hash) DO UPDATE SET
+            attempts = CASE WHEN rivo_pilot_login_attempts.reset_at <= now() THEN 1 ELSE rivo_pilot_login_attempts.attempts + 1 END,
+            reset_at = CASE WHEN rivo_pilot_login_attempts.reset_at <= now() THEN now() + interval '15 minutes' ELSE rivo_pilot_login_attempts.reset_at END
+          RETURNING attempts`, [addressHash]);
+        if (limits[0].attempts > 12) {
+          res.setHeader("Retry-After", "900");
+          throw new PilotError(429, "Твърде много опити. Опитай отново след 15 минути.", "RATE_LIMITED");
+        }
+        if (typeof body.code !== "string" || !timingSafeEqual(Buffer.from(hash(body.code)), Buffer.from(gateHash))) throw new PilotError(401, "Кодът за вътрешния тест е невалиден.", "INVALID_CODE");
+        if (!["customer", "driver"].includes(body.role)) throw new PilotError(400, "Избери пътник или шофьор.");
+        const name = text(body.name, "Име");
+        const type = body.role === "driver" ? vehicleType(body.vehicleType) : null;
+        const model = body.role === "driver" ? text(body.vehicleModel, "Автомобил") : null;
+        const plate = body.role === "driver" ? text(body.vehiclePlate, "Регистрационен номер", 20) : null;
+        const token = randomBytes(32).toString("base64url");
+        const rows = await query(`INSERT INTO rivo_pilot_sessions
+          (id, token_hash, gate_hash, role, display_name, vehicle_type, vehicle_model, vehicle_plate, expires_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now() + interval '24 hours') RETURNING *`,
+        [randomUUID(), hash(token), gateHash, body.role, name, type, model, plate]);
+        res.setHeader("Set-Cookie", cookie(token));
+        return send(200, { participant: participant(rows[0]), tariff: DEFAULT_TARIFF });
+      }
+
+      const session = await sessionFor(req);
+      if (action === "session" && req.method === "GET") return send(200, { participant: session ? participant(session) : null, tariff: DEFAULT_TARIFF });
+      if (!session) throw new PilotError(401, "Влез отново във вътрешния тест.", "SESSION_REQUIRED");
+
+      if (rideAlerts) {
+        if (action === "presence" && req.method === "POST") return send(200, await rideAlerts.changePresence(session, body));
+        if (action === "notification-config" && req.method === "GET") return send(200, await rideAlerts.config(session, req, new URL(req.url, "http://localhost").searchParams.get("endpoint")));
+        if (action === "notification-subscription" && req.method === "POST") return send(200, await rideAlerts.subscription(session, req, body));
+        if (action === "notification-check" && req.method === "GET") return send(200, await rideAlerts.check(session, req, new URL(req.url, "http://localhost").searchParams));
+      }
+
+      if (action === "quote" && req.method === "POST") {
+        if (session.role !== "customer") throw new PilotError(403, "Само пътник може да изчисли цена за заявка.");
+        const pickup = location(body.pickup, "взимане");
+        const destination = location(body.destination, "дестинацията");
+        const type = vehicleType(body.vehicleType);
+        const quote = await quotes.issue({ sessionId: session.id, pickup, destination, vehicleType: type });
+        return send(200, { quote });
+      }
+
+      if (action === "logout" && req.method === "POST") {
+        const active = await query(`SELECT id FROM rivo_pilot_rides WHERE ${session.role === "customer" ? "customer_id" : "driver_id"} = $1 AND status = ANY($2::text[]) LIMIT 1`, [session.id, ACTIVE]);
+        if (active[0]) throw new PilotError(409, "Приключи или откажи активния курс преди изход.", "ACTIVE_RIDE");
+        if (!resolveParticipant) {
+          await query("UPDATE rivo_pilot_sessions SET expires_at = now() WHERE id = $1", [session.id]);
+          res.setHeader("Set-Cookie", cookie("", 0));
+        }
+        return send(200, { ok: true });
+      }
+
+      if (!["tracking", "position"].includes(action)) await expireWaiting();
+      if (action === "state" && req.method === "GET") {
+        const presence = rideAlerts ? await rideAlerts.presence(session) : null;
+        const mine = await query(`${selectRides} WHERE r.${session.role === "customer" ? "customer_id" : "driver_id"} = $1 ORDER BY r.created_at DESC LIMIT 10`, [session.id]);
+        const active = mine.find(row => ACTIVE.includes(row.status));
+        const available = session.role === "driver" && !active && (!resolveParticipant || session.can_accept) && (!rideAlerts || presence?.online)
+          ? await query(`${selectRides} WHERE r.status = 'waiting' AND r.expires_at > now() AND c.account_id IS ${resolveParticipant ? "NOT " : ""}NULL${resolveParticipant ? " AND c.account_id <> $1" : ""} ORDER BY r.created_at LIMIT 20`, resolveParticipant ? [session.account_id] : []) : [];
+        const ownCustomerRide = row => ride(row, session.role === "customer");
+        return send(200, { participant: participant(session), tariff: DEFAULT_TARIFF, activeRide: active ? ownCustomerRide(active) : null, rides: mine.map(ownCustomerRide), requests: available.map(row => ride(row)),
+          ...(session.role === "customer" && (!active || active.status === "waiting") ? { availability: await availability(session) } : {}),
+          ...(rideAlerts ? { presence, serverTime: new Date().toISOString() } : {}) });
+      }
+
+      if (action === "create" && req.method === "POST") {
+        if (session.role !== "customer") throw new PilotError(403, "Само пътник може да изпрати заявка.");
+        if (!UUID.test(body.idempotencyKey || "")) throw new PilotError(400, "Невалиден номер на заявката.");
+        const existing = await query("SELECT id FROM rivo_pilot_rides WHERE customer_id = $1 AND idempotency_key = $2", [session.id, body.idempotencyKey]);
+        if (existing[0]) return send(200, { ride: ride(await getRide(existing[0].id)) });
+        const pickup = location(body.pickup, "взимане");
+        const destination = location(body.destination, "дестинацията");
+        const type = vehicleType(body.vehicleType);
+        if (!Number.isInteger(body.passengers) || body.passengers < 1 || body.passengers > 4) throw new PilotError(400, "Пътниците трябва да са между 1 и 4.");
+        const fare = await quotes.verify(body.quoteToken, { sessionId: session.id, pickup, destination, vehicleType: type });
+        const rows = await query(`INSERT INTO rivo_pilot_rides
+          (id, customer_id, idempotency_key, pickup, destination, vehicle_type, passengers, price_cents, fare_quote)
+          VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, $8, $9::jsonb)
+          ON CONFLICT (customer_id, idempotency_key) DO UPDATE SET idempotency_key = EXCLUDED.idempotency_key RETURNING id`,
+        [randomUUID(), session.id, body.idempotencyKey, JSON.stringify(pickup), JSON.stringify(destination), type, body.passengers, fare.priceCents, JSON.stringify(fare)]);
+        return send(201, { ride: ride(await getRide(rows[0].id)) });
+      }
+
+      if (["tracking", "position"].includes(action) && req.method === "POST") {
+        if (session.role !== "driver") throw new PilotError(403, "Само приелият шофьор може да споделя позиция.");
+        if (!UUID.test(body.rideId || "")) throw new PilotError(400, "Невалиден номер на курса.");
+        if (action === "tracking") {
+          if (!["start", "stop"].includes(body.command)) throw new PilotError(400, "Невалидно действие за GPS.");
+          if (body.command === "start" && !UUID.test(body.trackingId || "")) throw new PilotError(400, "Невалидна GPS сесия.");
+          if (body.trackingId != null && !UUID.test(body.trackingId)) throw new PilotError(400, "Невалидна GPS сесия.");
+          const start = body.command === "start";
+          const rows = await query(start
+            ? `UPDATE rivo_pilot_rides SET
+                driver_location = CASE WHEN driver_tracking_id = $3 THEN driver_location ELSE NULL END,
+                driver_location_updated_at = CASE WHEN driver_tracking_id = $3 THEN driver_location_updated_at ELSE NULL END,
+                driver_tracking_id = $3
+              WHERE id = $1 AND driver_id = $2 AND status IN ('accepted', 'arrived', 'in_progress') RETURNING id`
+            : `UPDATE rivo_pilot_rides SET driver_tracking_id = NULL, driver_location = NULL, driver_location_updated_at = NULL
+              WHERE id = $1 AND driver_id = $2 AND status IN ('accepted', 'arrived', 'in_progress')
+                AND ($3::uuid IS NULL OR driver_tracking_id = $3) RETURNING id`,
+          [body.rideId, session.id, body.trackingId || null]);
+          if (!rows[0]) throw new PilotError(409, "Курсът или GPS споделянето вече е променено. Обнови заявките.", "TRACKING_CONFLICT");
+          return send(200, { ok: true });
+        }
+        const point = body.position;
+        if (!UUID.test(body.trackingId || "") || !validDriverPosition(point)
+          || !Number.isSafeInteger(point?.sequence) || point.sequence < 1
+          || !Number.isFinite(point?.measuredAt) || Math.abs(Date.now() - point.measuredAt) > GPS_SAMPLE_MAX_AGE_MS) {
+          throw new PilotError(400, "Нужна е актуална GPS позиция с точност до 500 м.", "INVALID_POSITION");
+        }
+        const rows = await query(`UPDATE rivo_pilot_rides SET driver_location = $4::jsonb, driver_location_updated_at = now()
+          WHERE id = $1 AND driver_id = $2 AND driver_tracking_id = $3 AND status IN ('accepted', 'arrived', 'in_progress')
+            AND COALESCE((driver_location->>'sequence')::bigint, 0) < $5
+            AND (driver_location_updated_at IS NULL OR driver_location_updated_at <= now() - interval '2 seconds') RETURNING id`,
+        [body.rideId, session.id, body.trackingId, JSON.stringify({ lat: point.lat, lng: point.lng, accuracy: point.accuracy, measuredAt: point.measuredAt, sequence: point.sequence }), point.sequence]);
+        if (!rows[0]) {
+          const owned = await query("SELECT id FROM rivo_pilot_rides WHERE id = $1 AND driver_id = $2 AND driver_tracking_id = $3 AND status IN ('accepted', 'arrived', 'in_progress')", [body.rideId, session.id, body.trackingId]);
+          if (!owned[0]) throw new PilotError(409, "Курсът или GPS споделянето вече е променено. Обнови заявките.", "TRACKING_CONFLICT");
+        }
+        return send(200, { ok: true, accepted: Boolean(rows[0]) });
+      }
+
+      if (action === "transition" && req.method === "POST") {
+        if (!UUID.test(body.rideId || "")) throw new PilotError(400, "Невалиден номер на курса.");
+        const transitions = {
+          accept: { role: "driver", from: ["waiting"], to: "accepted" },
+          arrive: { role: "driver", from: ["accepted"], to: "arrived" },
+          start: { role: "driver", from: ["arrived"], to: "in_progress" },
+          complete: { role: "driver", from: ["in_progress"], to: "completed" },
+          cancel: { role: session.role, from: session.role === "customer" ? ["waiting", "accepted", "arrived"] : ["accepted", "arrived"], to: "cancelled" }
+        };
+        const change = transitions[body.command];
+        if (!change || change.role !== session.role) throw new PilotError(403, "Това действие не е разрешено.");
+        const accepting = body.command === "accept";
+        const ownership = accepting ? `expires_at > now() AND EXISTS (SELECT 1 FROM rivo_pilot_sessions c WHERE c.id = customer_id AND c.account_id IS ${resolveParticipant ? "NOT " : ""}NULL${resolveParticipant ? " AND c.account_id <> (SELECT account_id FROM rivo_pilot_sessions WHERE id = $4)" : ""})${resolveParticipant
+          ? " AND EXISTS (SELECT 1 FROM rivo_driver_applications a JOIN rivo_pilot_sessions d ON d.account_id = a.account_id WHERE d.id = $4 AND a.status = 'approved' AND a.permit_valid_until >= (now() AT TIME ZONE 'Europe/Sofia')::date)" : ""}` : `${session.role === "customer" ? "customer_id" : "driver_id"} = $4`;
+        const clearTracking = ["completed", "cancelled"].includes(change.to) ? ", driver_tracking_id = NULL, driver_location = NULL, driver_location_updated_at = NULL" : "";
+        const rows = await query(`UPDATE rivo_pilot_rides SET status = $2, updated_at = now(), revision = revision + 1${accepting ? ", driver_id = $4" : ""}${clearTracking}
+          WHERE id = $1 AND status = ANY($3::text[]) AND ${ownership} RETURNING id`,
+        [body.rideId, change.to, change.from, session.id]);
+        if (!rows[0]) throw new PilotError(409, "Заявката вече е променена. Обнови списъка.", "RIDE_CONFLICT");
+        return send(200, { ride: ride(await getRide(rows[0].id)) });
+      }
+
+      throw new PilotError(404, "Действието не е намерено.");
+    } catch (error) {
+      if (error instanceof PilotError || error instanceof QuoteError || error instanceof RouteError || error instanceof AccountError) return send(error.status, { error: error.message, code: error.code });
+      if (error.code === "P0001") return send(409, { error: "За нов курс се включи онлайн с валидно одобрение.", code: "PRESENCE_REQUIRED" });
+      if (error.code === "23505") return send(409, { error: "Вече има активна заявка за този участник. Обнови списъка.", code: "RIDE_CONFLICT" });
+      if (error.code === "42P01") return send(503, { error: "Вътрешният тест още не е активиран. Свържи се с екипа на RIVO.", code: "SCHEMA_NOT_READY" });
+      reportError(error);
+      return send(503, { error: "Връзката с RIVO прекъсна. Опитай отново.", code: "SERVICE_UNAVAILABLE" });
+    }
+  };
+}
