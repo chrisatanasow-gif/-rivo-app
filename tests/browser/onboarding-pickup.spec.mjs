@@ -155,6 +155,12 @@ test("an auth module download failure has an explicit reload recovery", async ({
 });
 
 test("GPS keeps exact measured coordinates through address lookup, quote and create", async ({ page, context }, info) => {
+  // This case isolates GPS integrity. Driver availability has its own API/browser cases.
+  await page.route("**/api/member-rides?**", async route => {
+    if (new URL(route.request().url()).searchParams.get("action") !== "state") return route.continue();
+    const response = await route.fetch(); const data = await response.json();
+    await route.fulfill({ response, json: { ...data, availability: { status: "available", checkedAt: data.serverTime } } });
+  });
   await context.grantPermissions(["geolocation"]); await context.setGeolocation({ latitude: 42.61, longitude: 23.05, accuracy: 12 });
   await login(page); await gpsButton(page).click();
   await expect(select(page, "Взимане")).toHaveValue("улица Тестова 12");
